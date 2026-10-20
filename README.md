@@ -1,4 +1,4 @@
-# JUnit 5: Escribiendo y ejecutando primeras pruebas unitarias con Assertions
+# Escribiendo y ejecutando primeras pruebas unitarias con Assertions
 
 ## 1. ¿Qué estamos probando?
 
@@ -221,3 +221,116 @@ assertEquals("Andres", real);
 Una prueba unitaria comprueba una parte pequeña del programa de forma aislada. En este ejemplo, creamos una cuenta, obtenemos el nombre y verificamos con una aserción que el resultado coincida con el esperado.
 
 Las pruebas ayudan a detectar regresiones: errores que aparecen cuando modificamos código que antes funcionaba.
+
+# Escribiendo test para el saldo
+
+## 1. Objetivo de la prueba
+
+La prueba verifica dos cosas sobre el saldo de una cuenta:
+
+1. Que el saldo tenga el valor esperado: `1000.12345`.
+2. Que el saldo no sea negativo.
+
+Código del curso:
+
+```java
+@Test
+void testSaldoCuenta() {
+    Cuenta cuenta = new Cuenta(
+        "Andres",
+        new BigDecimal("1000.12345")
+    );
+
+    assertEquals(1000.12345, cuenta.getSaldo().doubleValue());
+    assertFalse(cuenta.getSaldo().compareTo(BigDecimal.ZERO) < 0);
+}
+```
+
+## 2. `getSaldo()`
+
+`cuenta.getSaldo()` obtiene el saldo de la cuenta. En la clase `Cuenta`, el atributo `saldo` es de tipo `BigDecimal`, y Lombok genera el getter gracias a `@Getter`.
+
+## 3. `doubleValue()`
+
+`cuenta.getSaldo().doubleValue()` convierte el valor `BigDecimal` a un tipo primitivo `double`. El curso lo hace para compararlo con `1000.12345`, que es un literal `double`.
+
+**Precaución:** convertir `BigDecimal` a `double` puede perder precisión. Para importes monetarios suele ser preferible mantener la comparación en `BigDecimal`.
+
+Una alternativa para este ejemplo:
+
+```java
+BigDecimal esperado = new BigDecimal("1000.12345");
+assertEquals(esperado, cuenta.getSaldo());
+```
+
+Esto funciona porque ambos valores tienen la misma escala. `BigDecimal.equals()` distingue la escala: `10.0` y `10.00` no son iguales mediante `equals()`, aunque tengan el mismo valor numérico.
+
+Para comparar el valor numérico sin importar la escala:
+
+```java
+assertEquals(
+    0,
+    cuenta.getSaldo().compareTo(new BigDecimal("1000.12345"))
+);
+```
+
+## 4. `BigDecimal.ZERO`
+
+`BigDecimal.ZERO` es una constante de `BigDecimal` que representa el número cero. Se utiliza para comparar el saldo con cero.
+
+## 5. `compareTo()`
+
+```java
+cuenta.getSaldo().compareTo(BigDecimal.ZERO)
+```
+
+Compara el saldo con cero:
+
+- Resultado negativo: el saldo es menor que cero.
+- Resultado `0`: el saldo es igual a cero.
+- Resultado positivo: el saldo es mayor que cero.
+
+## 6. El operador `< 0`
+
+```java
+cuenta.getSaldo().compareTo(BigDecimal.ZERO) < 0
+```
+
+Pregunta: “¿El saldo es menor que cero?”. El resultado es un `boolean`:
+
+- `true` si el saldo es negativo.
+- `false` si el saldo es cero o positivo.
+
+## 7. `assertFalse()`
+
+```java
+assertFalse(
+    cuenta.getSaldo().compareTo(BigDecimal.ZERO) < 0
+);
+```
+
+`assertFalse()` verifica que la condición recibida sea falsa. Queremos comprobar que la condición “el saldo es menor que cero” no se cumpla.
+
+| Saldo | ¿Saldo < 0? | Resultado de `assertFalse()` |
+|---:|---|---|
+| `-50` | `true` | Falla |
+| `0` | `false` | Pasa |
+| `1000` | `false` | Pasa |
+
+## 8. Resumen de los conceptos
+
+| Concepto | Función |
+|---|---|
+| `getSaldo()` | Obtiene el saldo de la cuenta. |
+| `doubleValue()` | Convierte `BigDecimal` a `double`, con posible pérdida de precisión. |
+| `BigDecimal.ZERO` | Constante que representa cero. |
+| `compareTo()` | Compara numéricamente dos valores `BigDecimal`. |
+| `< 0` | Comprueba si el resultado de la comparación es negativo. |
+| `assertFalse()` | Hace que la prueba falle si la condición es verdadera. |
+| `assertEquals()` | Comprueba que el valor esperado coincida con el valor real. |
+
+## 9. Idea principal
+
+La prueba utiliza una aserción para comprobar el valor del saldo y otra para comprobar una regla: que el saldo no sea negativo.
+
+Recuerda: `assertFalse(condicion)` pasa cuando la condición es `false`. Si la condición es `true`, la aserción falla.
