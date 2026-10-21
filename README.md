@@ -718,4 +718,210 @@ El import `org.junit.jupiter.api.*` ya incluye `Test`, por lo que no es necesari
 
 La idea principal es que una prueba unitaria no solo comprueba que el código funcione en situaciones normales; también verifica que rechace correctamente las operaciones inválidas y que lo haga de la forma esperada.
 
+# Agregando la clase `Banco` y la relación con las cuentas
+
+## 1. Relación entre `Banco` y `Cuenta`
+
+`Banco` administra una lista de objetos `Cuenta`, y cada `Cuenta` guarda una referencia al banco asociado. Es una **asociación bidireccional**: puedes navegar del banco a sus cuentas y de una cuenta a su banco.
+
+## 2. Cambios en `Cuenta`
+
+```java
+@Getter
+@Setter
+@AllArgsConstructor
+public class Cuenta {
+    private String persona;
+    private BigDecimal saldo;
+    private Banco banco;
+
+    public Cuenta(String persona, BigDecimal saldo) {
+        this.persona = persona;
+        this.saldo = saldo;
+    }
+}
+```
+
+- `private Banco banco`: referencia a un objeto `Banco`.
+- `@Getter` y `@Setter`: Lombok genera métodos como `getBanco()` y `setBanco(...)`.
+- `@AllArgsConstructor`: genera un constructor con todos los atributos, ahora tres: persona, saldo y banco.
+- El constructor manual de dos argumentos permite seguir creando cuentas sin indicar el banco. En ese caso, `banco` queda `null` hasta asignarlo.
+
+## 3. La clase `Banco`
+
+```java
+@Getter
+@Setter
+public class Banco {
+    private String nombre;
+    private List<Cuenta> cuentas;
+
+    public Banco() {
+        cuentas = new ArrayList<>();
+    }
+
+    public void transferir(Cuenta origen, Cuenta destino, BigDecimal monto) {
+        origen.debito(monto);
+        destino.credito(monto);
+    }
+
+    public void addCuenta(Cuenta cuenta) {
+        cuentas.add(cuenta);
+        cuenta.setBanco(this);
+    }
+}
+```
+
+- `List<Cuenta>`: `List` es una interfaz de Java para una colección ordenada; aquí contiene objetos `Cuenta`.
+- `ArrayList<>`: implementación de `List` cuyo tamaño puede crecer. `new ArrayList<>()` crea una lista vacía.
+- El constructor inicializa `cuentas`, evitando intentar agregar elementos a una lista `null`.
+- `@Getter` y `@Setter`: Lombok genera métodos para consultar y modificar los atributos.
+
+## 4. El método `addCuenta()`
+
+```java
+public void addCuenta(Cuenta cuenta) {
+    cuentas.add(cuenta);
+    cuenta.setBanco(this);
+}
+```
+
+- `cuentas.add(cuenta)`: registra la cuenta en la lista del banco.
+- `cuenta.setBanco(this)`: establece la referencia inversa desde la cuenta al banco.
+- `this`: representa el objeto actual. Si ejecutas `banco.addCuenta(cuenta1)`, `this` representa `banco`.
+
+Las dos líneas mantienen la relación en ambas direcciones. El código actual no impide cuentas duplicadas ni evita que una cuenta se asocie con distintos bancos; eso requeriría validaciones adicionales.
+
+## 5. El método `transferir()`
+
+```java
+public void transferir(Cuenta origen, Cuenta destino, BigDecimal monto) {
+    origen.debito(monto);
+    destino.credito(monto);
+}
+```
+
+- `origen`: cuenta de la que sale el dinero.
+- `destino`: cuenta que recibe el dinero.
+- `monto`: cantidad que se transfiere.
+- `debito(monto)`: resta el importe de la cuenta de origen.
+- `credito(monto)`: suma el importe a la cuenta de destino.
+
+Si el débito lanza una excepción, el crédito no se ejecuta. En un sistema bancario real, las transferencias necesitan controles adicionales para garantizar que ambas operaciones se completen correctamente o que ninguna quede aplicada.
+
+## 6. Probar una transferencia
+
+```java
+@Test
+void testTransferirDineroCuentas() {
+    Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
+    Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
+
+    Banco banco = new Banco();
+    banco.setNombre("Banco del estado");
+
+    banco.transferir(cuenta2, cuenta1, new BigDecimal("500"));
+
+    assertEquals("1000.8989", cuenta2.getSaldo().toPlainString());
+    assertEquals("3000", cuenta1.getSaldo().toPlainString());
+}
+```
+
+La cuenta de Andres es el origen y la de Jhon Doe es el destino:
+- Andres: `1500.8989 - 500 = 1000.8989`.
+- Jhon Doe: `2500 + 500 = 3000`.
+
+`toPlainString()` convierte `BigDecimal` a texto sin notación científica. Esta prueba compara las cadenas exactamente. También puedes comparar numéricamente con `compareTo()`:
+
+```java
+assertEquals(0, cuenta2.getSaldo().compareTo(new BigDecimal("1000.8989")));
+```
+
+`compareTo()` devuelve `0` si los valores numéricos son iguales, incluso si su escala decimal es distinta.
+
+Esta prueba no registra las cuentas en la lista porque el método `transferir()` actual no exige que estén registradas.
+
+## 7. Probar la relación entre banco y cuentas
+
+```java
+@Test
+void testRelacionBancoCuentas() {
+    Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
+    Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
+
+    Banco banco = new Banco();
+    banco.addCuenta(cuenta1);
+    banco.addCuenta(cuenta2);
+    banco.setNombre("Banco del estado");
+
+    banco.transferir(cuenta2, cuenta1, new BigDecimal("500"));
+
+    assertEquals("1000.8989", cuenta2.getSaldo().toPlainString());
+    assertEquals("3000", cuenta1.getSaldo().toPlainString());
+    assertEquals(2, banco.getCuentas().size());
+    assertEquals("Banco del estado", cuenta1.getBanco().getNombre());
+}
+```
+
+- `addCuenta(...)`: registra la cuenta y establece su banco.
+- `getCuentas().size()`: obtiene cuántas cuentas hay en la lista; esperamos `2`.
+- `cuenta1.getBanco().getNombre()`: navega de la cuenta al banco y después obtiene su nombre.
+
+## 8. Buscar cuentas con Stream API
+
+### `filter()` y `findFirst()`
+
+```java
+assertEquals(
+    "Andres",
+    banco.getCuentas().stream()
+        .filter(c -> c.getPersona().equals("Andres"))
+        .findFirst()
+        .get()
+        .getPersona()
+);
+```
+
+1. `getCuentas()` obtiene la lista.
+2. `stream()` permite procesar sus elementos con Stream API.
+3. `filter(...)` conserva los elementos que cumplen la condición.
+4. `c -> ...` es una expresión lambda; `c` representa cada cuenta examinada.
+5. `findFirst()` devuelve un `Optional<Cuenta>` con la primera coincidencia, si existe.
+6. `get()` obtiene la cuenta del `Optional`, pero lanza `NoSuchElementException` si no hay coincidencia.
+7. `getPersona()` obtiene el nombre y `assertEquals()` lo compara con `"Andres"`.
+
+Para una comprobación más directa y segura cuando solo interesa saber si existe una coincidencia, puedes usar:
+
+```java
+assertTrue(
+    banco.getCuentas().stream()
+        .anyMatch(c -> c.getPersona().equals("Andres"))
+);
+```
+
+`anyMatch()` devuelve `true` si al menos una cuenta cumple la condición. `assertTrue()` hace fallar la prueba si el resultado es `false`.
+
+## 9. Consideración sobre `equals()` y `hashCode()`
+
+La versión previa de `Cuenta` compara `persona` y `saldo`, pero no `banco`. Eso puede ser intencional: el banco no siempre forma parte de la identidad lógica de la cuenta. Incluir ambos lados de una relación bidireccional en `equals()` puede provocar comparaciones recursivas.
+
+## 10. Resumen
+
+| Elemento | Función |
+|---|---|
+| `List<Cuenta>` | Lista de objetos `Cuenta`. |
+| `ArrayList<>` | Implementación de lista que puede cambiar de tamaño. |
+| `this` | Referencia al objeto actual. |
+| `addCuenta()` | Registra una cuenta y establece el banco asociado. |
+| `transferir()` | Debita una cuenta y acredita otra. |
+| `size()` | Devuelve el número de elementos. |
+| `stream()` | Permite procesar una colección con Stream API. |
+| `filter()` | Filtra elementos según una condición. |
+| `findFirst()` | Devuelve un `Optional` con la primera coincidencia. |
+| `get()` | Obtiene el valor del `Optional`; falla si está vacío. |
+| `anyMatch()` | Comprueba si al menos un elemento cumple una condición. |
+| `assertEquals()` | Compara el resultado real con el esperado. |
+| `assertTrue()` | Comprueba que una condición sea verdadera. |
+
+La idea central es que `Banco` administra varias cuentas y que `addCuenta()` mantiene sincronizada la relación entre ambos objetos. Los tests verifican tanto los saldos de la transferencia como la relación entre el banco y sus cuentas.
 

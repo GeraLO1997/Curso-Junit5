@@ -11,9 +11,17 @@ import java.util.Objects;
 @Getter
 @Setter
 @AllArgsConstructor
+
 public class Cuenta {
     private String persona;
     private BigDecimal saldo;
+    private Banco banco;
+
+    // constructor solo para que no nos salga error
+    public Cuenta(String persona, BigDecimal saldo){
+        this.persona = persona;
+        this.saldo = saldo;
+    }
 
     public void debito(BigDecimal monto){
         BigDecimal nuevoSaldo = this.saldo.subtract(monto);
