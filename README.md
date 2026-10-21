@@ -925,3 +925,123 @@ La versión previa de `Cuenta` compara `persona` y `saldo`, pero no `banco`. Eso
 
 La idea central es que `Banco` administra varias cuentas y que `addCuenta()` mantiene sincronizada la relación entre ambos objetos. Los tests verifican tanto los saldos de la transferencia como la relación entre el banco y sus cuentas.
 
+# Usando el método `assertAll()` en JUnit 5
+
+## 1. ¿Qué hace `assertAll()`?
+
+`assertAll()` agrupa varias aserciones y ejecuta todas las comprobaciones del grupo. Si algunas fallan, JUnit informa los fallos al terminar el grupo, en lugar de detenerse en la primera aserción fallida.
+
+**Analogía:** es como revisar todas las preguntas de un examen y después informar cuáles están mal, en vez de detenerse en la primera respuesta incorrecta.
+
+## 2. Estructura
+
+```java
+assertAll(
+    () -> assertEquals("1000.8989", cuenta2.getSaldo().toPlainString()),
+    () -> assertEquals("3000", cuenta1.getSaldo().toPlainString())
+);
+```
+
+- `assertAll(...)`: agrupa las comprobaciones.
+- `() ->`: expresión lambda sin parámetros. `->` separa los parámetros del código que se ejecuta.
+- `assertEquals(...)`: compara el resultado esperado con el real.
+- Cada lambda representa una comprobación independiente.
+
+También puedes usar llaves cuando necesitas varias instrucciones dentro de una lambda.
+
+## 3. Preparar la prueba
+
+```java
+Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
+Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
+
+Banco banco = new Banco();
+banco.addCuenta(cuenta1);
+banco.addCuenta(cuenta2);
+banco.setNombre("Banco del estado");
+
+banco.transferir(cuenta2, cuenta1, new BigDecimal("500"));
+```
+
+La cuenta de Andres (`cuenta2`) es el origen y la de Jhon Doe (`cuenta1`) es el destino. Los saldos esperados son:
+- Andres: `1500.8989 - 500 = 1000.8989`.
+- Jhon Doe: `2500 + 500 = 3000`.
+
+## 4. Prueba completa
+
+```java
+@Test
+void testRelacionBancoCuentas() {
+    Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
+    Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
+
+    Banco banco = new Banco();
+    banco.addCuenta(cuenta1);
+    banco.addCuenta(cuenta2);
+    banco.setNombre("Banco del estado");
+    banco.transferir(cuenta2, cuenta1, new BigDecimal("500"));
+
+    assertAll(
+        () -> assertEquals("1000.8989", cuenta2.getSaldo().toPlainString()),
+        () -> assertEquals("3000", cuenta1.getSaldo().toPlainString()),
+        () -> assertEquals(2, banco.getCuentas().size()),
+        () -> assertEquals("Banco del estado", cuenta1.getBanco().getNombre()),
+        () -> assertEquals(
+            "Andres",
+            banco.getCuentas().stream()
+                .filter(c -> c.getPersona().equals("Andres"))
+                .findFirst()
+                .get()
+                .getPersona()
+        ),
+        () -> assertTrue(
+            banco.getCuentas().stream()
+                .anyMatch(c -> c.getPersona().equals("Jhon Doe"))
+        )
+    );
+}
+```
+
+## 5. ¿Qué comprueba cada aserción?
+
+1. El saldo de Andres quedó en `1000.8989`.
+2. El saldo de Jhon Doe quedó en `3000`.
+3. `banco.getCuentas().size()` devuelve la cantidad de cuentas registradas; se esperan `2`.
+4. `cuenta1.getBanco().getNombre()` navega desde la cuenta al banco y obtiene su nombre.
+5. `stream()` permite procesar la lista; `filter()` conserva las cuentas de Andres; `findFirst()` devuelve un `Optional` con la primera coincidencia; `get()` obtiene la cuenta, pero lanza `NoSuchElementException` si no hay coincidencia.
+6. `anyMatch()` devuelve `true` si existe una cuenta de Jhon Doe; `assertTrue()` comprueba ese resultado.
+
+En la quinta aserción, `findFirst().get()` presupone que la cuenta existe. Si solo quieres comprobar su existencia, puedes usar `anyMatch()` directamente.
+
+## 6. ¿Qué pasa si varias aserciones fallan?
+
+Sin `assertAll()`, una aserción fallida normalmente detiene el método de prueba en ese punto y las posteriores no se ejecutan.
+
+Con `assertAll()`, JUnit ejecuta las comprobaciones del grupo y reúne los fallos de las aserciones para reportarlos juntos. Esto facilita diagnosticar varios problemas en una sola ejecución.
+
+No obstante, `assertAll()` no revierte cambios que el código ya haya realizado, ni garantiza que una lambda termine si ocurre un error inesperado dentro de ella.
+
+## 7. Import necesario
+
+```java
+import static org.junit.jupiter.api.Assertions.*;
+```
+
+El import estático permite llamar directamente a `assertAll()`, `assertEquals()` y `assertTrue()` sin escribir `Assertions.` delante.
+
+## 8. Resumen
+
+| Elemento | Función |
+|---|---|
+| `assertAll()` | Ejecuta un grupo de aserciones y reporta sus fallos juntos. |
+| `assertEquals()` | Compara el resultado esperado con el real. |
+| `assertTrue()` | Comprueba que una condición sea verdadera. |
+| `() -> ...` | Lambda que representa una comprobación. |
+| `stream()` | Permite procesar los elementos de una colección. |
+| `filter()` | Filtra elementos según una condición. |
+| `findFirst()` | Devuelve un `Optional` con la primera coincidencia. |
+| `anyMatch()` | Comprueba si al menos un elemento cumple una condición. |
+
+La idea principal: usa `assertAll()` cuando quieras validar varios resultados relacionados en una prueba y conocer todos los fallos del grupo en una sola ejecución.
+
+
