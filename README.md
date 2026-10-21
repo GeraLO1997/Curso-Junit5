@@ -548,4 +548,174 @@ Si se implementan los métodos antes de escribir los tests, las pruebas siguen s
 
 Las pruebas verifican que el saldo cambie correctamente después de un movimiento. Para validar importes decimales, comprueba el valor completo y no dependas únicamente de `intValue()`.
 
+# Probando y afirmando excepciones con `assertThrows` en JUnit 5
+
+## 1. ¿Qué es una excepción?
+
+Una excepción es un evento que ocurre durante la ejecución de un programa e indica que una operación no puede continuar normalmente.
+
+Ejemplo: una cuenta tiene $1,000 y alguien intenta retirar $1,500. La aplicación debe impedir el retiro y comunicar que no hay dinero suficiente.
+
+## 2. Crear una excepción personalizada
+
+```java
+package org.gerardo.junitapp.ejemplo.exceptions;
+
+public class DineroInsuficienteException extends RuntimeException {
+    public DineroInsuficienteException(String message) {
+        super(message);
+    }
+}
+```
+
+- `public`: permite acceder a la clase desde otras clases.
+- `class DineroInsuficienteException`: declara una excepción con un nombre específico del negocio.
+- `extends RuntimeException`: hereda de una excepción no comprobada (*unchecked*). Java no obliga a capturarla ni declararla con `throws`.
+- `String message`: recibe el mensaje que describe el problema.
+- `super(message)`: pasa el mensaje al constructor de `RuntimeException`.
+- `throw new DineroInsuficienteException(...)`: crea y lanza la excepción.
+
+## 3. Validar el saldo antes de hacer el débito
+
+```java
+public void debito(BigDecimal monto) {
+    BigDecimal nuevoSaldo = this.saldo.subtract(monto);
+
+    if (nuevoSaldo.compareTo(BigDecimal.ZERO) < 0) {
+        throw new DineroInsuficienteException("Dinero Insuficiente");
+    }
+
+    this.saldo = nuevoSaldo;
+}
+```
+
+- `public`: el método puede ser llamado desde otras clases.
+- `void`: el método no devuelve un valor.
+- `debito(BigDecimal monto)`: recibe el importe que se quiere retirar.
+- `subtract(monto)`: calcula la resta y devuelve un nuevo `BigDecimal`; no modifica el objeto original.
+- `BigDecimal.ZERO`: representa el valor cero.
+- `compareTo(BigDecimal.ZERO) < 0`: comprueba si el nuevo saldo es menor que cero.
+- `throw`: lanza la excepción cuando el saldo sería negativo.
+- `this.saldo = nuevoSaldo`: actualiza el saldo solo si la validación pasa.
+
+**Importante:** calcular `nuevoSaldo` antes de asignarlo a `this.saldo` permite rechazar el retiro sin modificar el saldo original.
+
+## 4. ¿Qué hace `assertThrows()`?
+
+`assertThrows()` es una aserción de JUnit 5 que verifica que un bloque de código lance una excepción del tipo esperado.
+
+Forma general:
+
+```java
+TipoExcepcion excepcion = assertThrows(
+    TipoExcepcion.class,
+    () -> {
+        // Código que debería lanzar la excepción
+    }
+);
+```
+
+- `TipoExcepcion.class`: indica la clase de excepción esperada.
+- `() -> { ... }`: es una expresión lambda que representa el código que JUnit debe ejecutar.
+- `assertThrows(...)`: hace fallar la prueba si no se lanza la excepción esperada. También acepta una excepción de un subtipo del esperado.
+- El valor devuelto es la excepción capturada, que se puede utilizar para revisar su mensaje.
+
+Si el bloque no lanza ninguna excepción, la prueba falla. Si lanza una excepción de un tipo incompatible, también falla.
+
+## 5. Probar la excepción y su mensaje
+
+```java
+@Test
+void dineroInsuficienteException() {
+    Cuenta cuenta = new Cuenta(
+        "Andres",
+        new BigDecimal("1000.12345")
+    );
+
+    DineroInsuficienteException exception = assertThrows(
+        DineroInsuficienteException.class,
+        () -> cuenta.debito(new BigDecimal("1500"))
+    );
+
+    String actual = exception.getMessage();
+    String esperado = "Dinero Insuficiente";
+
+    assertEquals(esperado, actual);
+}
+```
+
+Paso a paso:
+
+1. Se crea una cuenta con un saldo de `1000.12345`.
+2. Se intenta retirar `1500`, por lo que el nuevo saldo sería negativo.
+3. `assertThrows()` comprueba que se lance `DineroInsuficienteException`.
+4. La excepción capturada se guarda en `exception`.
+5. `getMessage()` recupera el mensaje de la excepción.
+6. `assertEquals(esperado, actual)` comprueba que el mensaje sea exactamente `"Dinero Insuficiente"`.
+
+Es preferible declarar la variable como `DineroInsuficienteException` en lugar de `Exception`, porque así queda claro el tipo concreto que esperamos y podemos acceder a sus métodos específicos si los tuviera.
+
+## 6. ¿Qué pasa con el saldo cuando se lanza la excepción?
+
+En el método `debito`, primero se calcula `nuevoSaldo`. Si resulta negativo, se lanza la excepción antes de ejecutar `this.saldo = nuevoSaldo`.
+
+Por eso, el saldo original debe permanecer sin cambios. Podemos comprobarlo con una prueba más completa:
+
+```java
+@Test
+void noDebeModificarSaldoCuandoNoHayDineroSuficiente() {
+    Cuenta cuenta = new Cuenta(
+        "Andres",
+        new BigDecimal("1000.12345")
+    );
+
+    assertThrows(
+        DineroInsuficienteException.class,
+        () -> cuenta.debito(new BigDecimal("1500"))
+    );
+
+    assertEquals(
+        new BigDecimal("1000.12345"),
+        cuenta.getSaldo()
+    );
+}
+```
+
+Esta prueba verifica dos comportamientos importantes:
+- Se lanza la excepción cuando el retiro supera el saldo.
+- El saldo no cambia si el retiro es rechazado.
+
+`BigDecimal.equals()` considera tanto el valor como la escala decimal. En este ejemplo ambos valores tienen la misma escala, así que la comparación es apropiada. Si quisieras comparar solo el valor numérico sin importar la escala, podrías usar `compareTo()`.
+
+## 7. Imports necesarios
+
+En la clase de pruebas puedes usar:
+
+```java
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+import org.gerardo.junitapp.ejemplo.exceptions.DineroInsuficienteException;
+```
+
+- `@Test`: marca un método como prueba de JUnit.
+- `Assertions.*`: importa estáticamente las aserciones para escribir `assertThrows`, `assertEquals` y otras sin anteponer `Assertions.`.
+- `DineroInsuficienteException`: permite usar la excepción personalizada en la prueba.
+
+El import `org.junit.jupiter.api.*` ya incluye `Test`, por lo que no es necesario importar también `org.junit.jupiter.api.Test` por separado. Basta con usar uno de los dos estilos.
+
+## 8. Resumen
+
+| Elemento | Función |
+|---|---|
+| `RuntimeException` | Clase base para excepciones no comprobadas. |
+| `throw` | Lanza una excepción. |
+| `super(message)` | Envía el mensaje al constructor de la clase padre. |
+| `assertThrows()` | Comprueba que se lance la excepción esperada. |
+| `TipoExcepcion.class` | Especifica el tipo de excepción que debe ocurrir. |
+| `() -> ...` | Expresión lambda que contiene la operación a probar. |
+| `getMessage()` | Recupera el mensaje de la excepción. |
+| `assertEquals()` | Compara el mensaje esperado con el real. |
+
+La idea principal es que una prueba unitaria no solo comprueba que el código funcione en situaciones normales; también verifica que rechace correctamente las operaciones inválidas y que lo haga de la forma esperada.
+
 

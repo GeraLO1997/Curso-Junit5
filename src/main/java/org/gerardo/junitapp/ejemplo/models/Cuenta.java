@@ -3,6 +3,7 @@ package org.gerardo.junitapp.ejemplo.models;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import org.gerardo.junitapp.ejemplo.exceptions.DineroInsuficienteException;
 
 import java.math.BigDecimal;
 import java.util.Objects;
@@ -15,7 +16,12 @@ public class Cuenta {
     private BigDecimal saldo;
 
     public void debito(BigDecimal monto){
-        this.saldo = this.saldo.subtract(monto);
+        BigDecimal nuevoSaldo = this.saldo.subtract(monto);
+
+        if (nuevoSaldo.compareTo(BigDecimal.ZERO) < 0){
+            throw new DineroInsuficienteException("Dinero Insuficiente");
+        }
+        this.saldo = nuevoSaldo;
     }
 
     public void credito(BigDecimal monto){

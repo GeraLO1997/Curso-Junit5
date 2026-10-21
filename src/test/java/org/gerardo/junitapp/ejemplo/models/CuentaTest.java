@@ -1,5 +1,6 @@
 package org.gerardo.junitapp.ejemplo.models;
 
+import org.gerardo.junitapp.ejemplo.exceptions.DineroInsuficienteException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
 
@@ -60,5 +61,17 @@ class CuentaTest {
         assertEquals(1100, cuenta.getSaldo().intValue()); // lo verificamos como un entero
         assertEquals("1100.12345",cuenta.getSaldo().toPlainString()); // lo verificamos como un string
 
+    }
+
+    @Test
+    void dineroInsuficienteException(){
+        Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+        Exception exception = assertThrows(DineroInsuficienteException.class, () -> {
+            cuenta.debito(new BigDecimal(1500));
+        });
+
+        String actual = exception.getMessage();
+        String esperado = "Dinero Insuficiente";
+        assertEquals(esperado,actual);
     }
 }
