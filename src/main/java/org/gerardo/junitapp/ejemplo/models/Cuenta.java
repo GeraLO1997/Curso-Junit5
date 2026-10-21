@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -13,4 +14,14 @@ public class Cuenta {
     private String persona;
     private BigDecimal saldo;
 
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Cuenta cuenta)) return false;
+        return Objects.equals(persona, cuenta.persona) && Objects.equals(saldo, cuenta.saldo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(persona, saldo);
+    }
 }

@@ -334,3 +334,108 @@ assertFalse(
 La prueba utiliza una aserción para comprobar el valor del saldo y otra para comprobar una regla: que el saldo no sea negativo.
 
 Recuerda: `assertFalse(condicion)` pasa cuando la condición es `false`. Si la condición es `true`, la aserción falla.
+
+# JUnit 5: TDD con JUnit
+
+## 1. ¿Qué es TDD?
+
+TDD significa *Test-Driven Development* o desarrollo guiado por pruebas. Es una forma de desarrollar software escribiendo primero una prueba que defina el comportamiento deseado.
+
+El ciclo es **Red → Green → Refactor**:
+
+1. **Red:** escribir una prueba que falle porque la funcionalidad todavía no está implementada.
+2. **Green:** escribir el código mínimo para que la prueba pase.
+3. **Refactor:** mejorar el código sin cambiar el comportamiento y volver a ejecutar las pruebas.
+
+## 2. ¿Qué comprueba el ejemplo?
+
+```java
+@Test
+void testReferenciaCuenta() {
+    Cuenta cuenta = new Cuenta("John Doe", new BigDecimal("8900.9997"));
+    Cuenta cuenta2 = new Cuenta("John Doe", new BigDecimal("8900.9997"));
+
+    // assertNotEquals(cuenta2, cuenta);
+    assertEquals(cuenta2, cuenta);
+}
+```
+
+Se crean dos objetos distintos con los mismos datos. La prueba espera que sean iguales según la definición de igualdad de `Cuenta`.
+
+## 3. El método `equals()`
+
+```java
+@Override
+public boolean equals(Object o) {
+    if (!(o instanceof Cuenta cuenta)) return false;
+
+    return Objects.equals(persona, cuenta.persona)
+        && Objects.equals(saldo, cuenta.saldo);
+}
+```
+
+- `@Override`: indica que se sobrescribe un método heredado.
+- `equals(Object o)`: recibe un objeto y devuelve `true` o `false` según el criterio de igualdad.
+- `instanceof`: comprueba si el objeto recibido es una instancia de `Cuenta`.
+- `!`: niega la condición.
+- `return false`: termina el método y devuelve `false`.
+- `o instanceof Cuenta cuenta`: comprueba el tipo y declara la variable `cuenta` si la comprobación tiene éxito.
+- `Objects.equals(a, b)`: compara valores de forma segura incluso si alguno es `null`.
+- `&&`: operador lógico Y; ambas comparaciones deben ser verdaderas.
+
+Aquí, dos cuentas son iguales si coinciden tanto la persona como el saldo.
+
+**Detalle:** `BigDecimal.equals()` distingue la escala. Por ejemplo, `8900.0` y `8900.00` no son iguales mediante `equals()`, aunque representen el mismo valor numérico.
+
+## 4. El método `hashCode()`
+
+```java
+@Override
+public int hashCode() {
+    return Objects.hash(persona, saldo);
+}
+```
+
+- `hashCode()` devuelve un entero utilizado, entre otros lugares, por estructuras como `HashMap` y `HashSet`.
+- `Objects.hash(persona, saldo)` calcula un código hash a partir de esos atributos.
+- Si dos objetos son iguales según `equals()`, deben tener el mismo código hash. Dos objetos diferentes pueden compartir un código hash.
+
+Por eso, al sobrescribir `equals()`, normalmente también se sobrescribe `hashCode()` usando los mismos atributos relevantes.
+
+## 5. `assertEquals()` y `assertNotEquals()`
+
+`assertEquals(cuenta2, cuenta)` verifica que los objetos sean iguales según su método `equals()`.
+
+`assertNotEquals(cuenta2, cuenta)` verifica que no sean iguales según `equals()`.
+
+Como ambos objetos tienen la misma persona y el mismo saldo, `assertEquals(cuenta2, cuenta)` pasa con la implementación mostrada. `assertNotEquals(cuenta2, cuenta)` fallaría.
+
+## 6. ¿Cómo se aplica TDD a este ejemplo?
+
+1. Escribir primero una prueba que establezca que dos cuentas con los mismos datos deben ser iguales.
+2. Ejecutarla y observar que falla con la igualdad predeterminada de `Object`, que compara identidad.
+3. Implementar `equals()` para comparar `persona` y `saldo`.
+4. Ejecutar la prueba otra vez y comprobar que pasa.
+5. Implementar o ajustar `hashCode()` para respetar el contrato con `equals()`.
+6. Refactorizar si hace falta y volver a ejecutar las pruebas.
+
+Si se escribe `equals()` antes de la prueba, sigue existiendo una prueba unitaria útil, pero no se sigue estrictamente el orden de TDD para esa funcionalidad.
+
+## 7. Resumen
+
+| Concepto | Función |
+|---|---|
+| TDD | Desarrollar guiándose por pruebas escritas primero. |
+| Red → Green → Refactor | Fallar, lograr que pase y mejorar el código. |
+| `equals()` | Define cuándo dos objetos se consideran iguales. |
+| `instanceof` | Comprueba el tipo del objeto. |
+| `Objects.equals()` | Compara objetos de forma segura frente a `null`. |
+| `&&` | Exige que ambas condiciones sean verdaderas. |
+| `hashCode()` | Proporciona un código hash coherente con `equals()`. |
+| `assertEquals()` | Verifica que dos valores u objetos sean iguales. |
+| `assertNotEquals()` | Verifica que dos valores u objetos no sean iguales. |
+
+## 8. Idea principal
+
+Dos objetos pueden ser instancias distintas creadas con `new` y, aun así, considerarse iguales por sus datos si la clase define ese criterio mediante `equals()`. JUnit permite comprobarlo con `assertEquals()`. TDD propone escribir esa expectativa primero y luego implementar el código que la haga pasar.
+
