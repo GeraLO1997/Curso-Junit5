@@ -439,3 +439,113 @@ Si se escribe `equals()` antes de la prueba, sigue existiendo una prueba unitari
 
 Dos objetos pueden ser instancias distintas creadas con `new` y, aun así, considerarse iguales por sus datos si la clase define ese criterio mediante `equals()`. JUnit permite comprobarlo con `assertEquals()`. TDD propone escribir esa expectativa primero y luego implementar el código que la haga pasar.
 
+# JUnit 5: TDD para débito y crédito
+
+## Objetivo
+
+Probamos dos operaciones que modifican el saldo:
+
+- Débito: `1000.12345 - 100 = 900.12345`.
+- Crédito: `1000.12345 + 100 = 1100.12345`.
+
+## Métodos de `Cuenta`
+
+```java
+public void debito(BigDecimal monto) {
+    this.saldo = this.saldo.subtract(monto);
+}
+
+public void credito(BigDecimal monto) {
+    this.saldo = this.saldo.add(monto);
+}
+```
+
+`public` permite llamar al método desde otras clases. `void` indica que no devuelve un valor. `monto` es el importe que se resta o suma. `this.saldo` es el atributo del objeto actual. `subtract()` resta y `add()` suma.
+
+`BigDecimal` es inmutable: `add()` y `subtract()` devuelven nuevos objetos, por eso el resultado se asigna a `this.saldo`.
+
+## Prueba de débito
+
+```java
+@Test
+void testDebitoCuenta() {
+    Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+    cuenta.debito(new BigDecimal("100"));
+
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(900, cuenta.getSaldo().intValue());
+    assertEquals("900.12345", cuenta.getSaldo().toPlainString());
+}
+```
+
+- `assertNotNull()` comprueba que el saldo no sea `null`, pero no verifica por sí sola que la resta sea correcta.
+- `intValue()` convierte el saldo a `int`. `900.12345` se convierte en `900`, descartando la parte decimal, sin redondear. Esta aserción solo comprueba la parte entera.
+- `toPlainString()` devuelve el `BigDecimal` como texto sin notación científica. La comparación verifica el saldo completo, incluidos los decimales.
+
+## Prueba de crédito
+
+```java
+@Test
+void testCreditoCuenta() {
+    Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+    cuenta.credito(new BigDecimal("100"));
+
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(1100, cuenta.getSaldo().intValue());
+    assertEquals("1100.12345", cuenta.getSaldo().toPlainString());
+}
+```
+
+El resultado correcto es `1100.12345`. Si el comentario del código indica `900.12345`, es una errata: ese es el resultado del débito.
+
+## Comparar `BigDecimal` directamente
+
+Es preferible evitar convertir importes a `int` o `double`, porque se puede perder información.
+
+Una opción es comparar numéricamente con `compareTo()`:
+
+```java
+assertEquals(
+    0,
+    cuenta.getSaldo().compareTo(new BigDecimal("900.12345"))
+);
+```
+
+`compareTo()` devuelve `0` cuando los valores son numéricamente iguales, incluso si tienen distinta escala.
+
+También se puede usar `assertEquals()` directamente si valor y escala deben coincidir:
+
+```java
+assertEquals(new BigDecimal("900.12345"), cuenta.getSaldo());
+```
+
+`BigDecimal.equals()` distingue la escala: `10.0` y `10.00` no son iguales con `equals()`.
+
+## Relación con TDD
+
+1. Escribir primero una prueba que defina el saldo esperado después del débito.
+2. Ejecutarla y observar que falle si la funcionalidad no existe o está mal implementada.
+3. Implementar `debito()` hasta que pase.
+4. Repetir el proceso con `credito()`.
+5. Refactorizar y ejecutar las pruebas de nuevo.
+
+Si se implementan los métodos antes de escribir los tests, las pruebas siguen siendo útiles, pero no se sigue estrictamente el orden TDD para esas funcionalidades.
+
+## Resumen
+
+| Concepto | Función |
+|---|---|
+| `debito(monto)` | Resta el importe al saldo. |
+| `credito(monto)` | Suma el importe al saldo. |
+| `subtract()` | Resta valores `BigDecimal`. |
+| `add()` | Suma valores `BigDecimal`. |
+| `assertNotNull()` | Comprueba que el resultado no sea `null`. |
+| `intValue()` | Convierte a entero y descarta la parte decimal. |
+| `toPlainString()` | Convierte el valor a texto sin notación científica. |
+| `compareTo()` | Compara numéricamente valores `BigDecimal`. |
+
+## Idea principal
+
+Las pruebas verifican que el saldo cambie correctamente después de un movimiento. Para validar importes decimales, comprueba el valor completo y no dependas únicamente de `intValue()`.
+
+

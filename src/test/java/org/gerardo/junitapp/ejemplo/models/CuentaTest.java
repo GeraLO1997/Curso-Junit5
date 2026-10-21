@@ -23,6 +23,7 @@ class CuentaTest {
     @Test
     void testSaldoCuenta(){
         Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+        assertNotNull(cuenta.getSaldo());
         assertEquals(1000.12345,cuenta.getSaldo().doubleValue()); // convertimos el BigDecimal a double
         assertFalse(cuenta.getSaldo().compareTo(BigDecimal.ZERO) < 0);
     }
@@ -35,5 +36,29 @@ class CuentaTest {
 
 //        assertNotEquals(cuenta2, cuenta);
         assertEquals(cuenta2, cuenta);
+    }
+
+    // Este test resta de la cuenta
+    @Test
+    void testDebitoCuenta(){
+        Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+        cuenta.debito(new BigDecimal(100)); // esperado 900.12345
+
+        assertNotNull(cuenta.getSaldo());
+        assertEquals(900, cuenta.getSaldo().intValue()); // lo verificamos como un entero
+        assertEquals("900.12345",cuenta.getSaldo().toPlainString()); // lo verificamos como un string
+
+    }
+
+    // Este test le suma a la cuenta
+    @Test
+    void testCreditoCuenta(){
+        Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+        cuenta.credito(new BigDecimal(100)); // esperado 900.12345
+
+        assertNotNull(cuenta.getSaldo());
+        assertEquals(1100, cuenta.getSaldo().intValue()); // lo verificamos como un entero
+        assertEquals("1100.12345",cuenta.getSaldo().toPlainString()); // lo verificamos como un string
+
     }
 }
