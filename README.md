@@ -1204,4 +1204,138 @@ Asegúrate de tener disponible la clase `Cuenta` en el paquete correspondiente.
 - `() -> "mensaje"` es una lambda que proporciona el texto de forma diferida.
 - Usa mensajes concretos y evita aserciones duplicadas cuando comprueban exactamente lo mismo.
 
+# Usando las anotaciones `@DisplayName` y `@Disabled` en JUnit 5
+
+Estas anotaciones ayudan a organizar las pruebas y controlar cuáles se ejecutan.
+
+Imagina que tienes una lista de pruebas para tu aplicación bancaria. En vez de ver solamente nombres técnicos, puedes mostrar una descripción clara. También puedes deshabilitar temporalmente una prueba mientras trabajas en ella.
+
+## 1. Código de ejemplo
+
+```java
+@Test
+@DisplayName("Probando relaciones entre las cuentas y el banco con assertAll")
+@Disabled
+void testRelacionBancoCuentas() {
+    fail();
+}
+```
+
+## 2. ¿Qué hace cada anotación o método?
+
+| Elemento | Función |
+|---|---|
+| `@Test` | Indica que el método es una prueba de JUnit 5. |
+| `@DisplayName` | Define un nombre descriptivo que se muestra en los resultados de las pruebas. |
+| `@Disabled` | Deshabilita la prueba para que JUnit no la ejecute normalmente. |
+| `fail()` | Hace que la prueba falle intencionalmente si llega a ejecutarse. |
+
+## 3. `@DisplayName`
+
+Permite asignar un nombre legible a una prueba, en lugar de depender únicamente del nombre del método.
+
+```java
+@Test
+@DisplayName("Debe relacionar correctamente las cuentas con el banco")
+void testRelacionBancoCuentas() {
+    // Aquí van las comprobaciones de la prueba.
+}
+```
+
+En el reporte de JUnit o del IDE se mostrará la descripción configurada en `@DisplayName`. El nombre del método sigue siendo `testRelacionBancoCuentas` en el código Java.
+
+**¿Para qué sirve?**
+
+- Hace que los reportes sean más fáciles de entender.
+- Describe el comportamiento que se está probando.
+- Ayuda a localizar rápidamente una prueba cuando falla.
+
+Puedes escribir espacios, acentos y frases completas dentro de la descripción.
+
+## 4. `@Disabled`
+
+Esta anotación indica que una prueba debe omitirse durante la ejecución normal de JUnit.
+
+```java
+@Test
+@DisplayName("Debe relacionar correctamente las cuentas con el banco")
+@Disabled
+void testRelacionBancoCuentas() {
+    // JUnit omitirá esta prueba.
+}
+```
+
+Es útil cuando una prueba está temporalmente en desarrollo o depende de una funcionalidad que todavía no está lista.
+
+También puedes indicar una razón:
+
+```java
+@Test
+@DisplayName("Debe relacionar correctamente las cuentas con el banco")
+@Disabled("Pendiente de completar las comprobaciones")
+void testRelacionBancoCuentas() {
+    // Prueba pendiente.
+}
+```
+
+La razón es opcional, pero ayuda a que el equipo entienda por qué la prueba está deshabilitada.
+
+**Importante:** no conviene dejar pruebas deshabilitadas permanentemente sin una razón clara. Cuando la funcionalidad esté lista, revisa la prueba y quita `@Disabled` para que vuelva a ejecutarse.
+
+## 5. ¿Qué hace `fail()`?
+
+`fail()` es una aserción de JUnit que provoca un fallo inmediato si el programa llega a esa línea.
+
+```java
+@Test
+void pruebaQueFallaIntencionalmente() {
+    fail("Esta prueba falla intencionalmente");
+}
+```
+
+Esta prueba falla y muestra el mensaje indicado. Puede servir para comprobar cómo se reportan los fallos o para marcar temporalmente una prueba que todavía no está implementada.
+
+En el ejemplo original, sin embargo, la prueba tiene `@Disabled`. Por eso, JUnit normalmente la omitirá y no llegará a ejecutar `fail()`.
+
+## 6. ¿Qué sucede al ejecutar la prueba original?
+
+```java
+@Test
+@DisplayName("Probando relaciones entre las cuentas y el banco con assertAll")
+@Disabled
+void testRelacionBancoCuentas() {
+    fail();
+}
+```
+
+El resultado esperado es:
+
+1. JUnit reconoce el método como una prueba gracias a `@Test`.
+2. Usa el texto de `@DisplayName` como nombre descriptivo.
+3. Debido a `@Disabled`, omite la prueba.
+4. Como la prueba se omite, no llega a ejecutarse `fail()`.
+
+Por tanto, **la prueba aparece como deshabilitada u omitida, no como una prueba fallida**.
+
+## 7. Importaciones
+
+Con JUnit 5, las importaciones pueden ser:
+
+```java
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.fail;
+```
+
+Si ya utilizas `import static org.junit.jupiter.api.Assertions.*;`, no necesitas agregar por separado la importación estática de `fail()`.
+
+## Resumen
+
+- `@Test`: identifica un método de prueba.
+- `@DisplayName("...")`: le asigna una descripción legible.
+- `@Disabled`: evita que la prueba se ejecute normalmente.
+- `fail()`: fuerza un fallo si se ejecuta.
+- En el ejemplo original, `@Disabled` impide que se alcance `fail()`.
 

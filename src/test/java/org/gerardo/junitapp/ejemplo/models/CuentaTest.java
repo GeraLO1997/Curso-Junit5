@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.*; // importamos estaticamente pa
 class CuentaTest {
 
     @Test
+    @DisplayName("Probando el nombre de la cuenta corriente")
     void test() {
         Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
 
@@ -25,6 +26,7 @@ class CuentaTest {
     }
 
     @Test
+    @DisplayName("Proabndo el saldo de la cuenta, que no sea null, mayor que cero, valor esperado")
     void testSaldoCuenta() {
         Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
         assertNotNull(cuenta.getSaldo());
@@ -34,6 +36,7 @@ class CuentaTest {
 
     // En este test aplicamos TDD para comprar 2 objetos
     @Test
+    @DisplayName("Comparando referencia que sean iguales")
     void testReferenciaCuenta() {
         Cuenta cuenta = new Cuenta("John Doe", new BigDecimal("8900.9997"));
         Cuenta cuenta2 = new Cuenta("John Doe", new BigDecimal("8900.9997"));
@@ -44,6 +47,7 @@ class CuentaTest {
 
     // Este test resta de la cuenta
     @Test
+    @DisplayName("Test del metodo debito")
     void testDebitoCuenta() {
         Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
         cuenta.debito(new BigDecimal(100)); // esperado 900.12345
@@ -56,6 +60,7 @@ class CuentaTest {
 
     // Este test le suma a la cuenta
     @Test
+    @DisplayName("Test del metodo credito")
     void testCreditoCuenta() {
         Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
         cuenta.credito(new BigDecimal(100)); // esperado 900.12345
@@ -79,6 +84,7 @@ class CuentaTest {
     }
 
     @Test
+    @DisplayName("Test relacion bidireccional")
     void testTransferirDineroCuentas() {
         Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
         Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
@@ -92,7 +98,10 @@ class CuentaTest {
     }
 
     @Test
+    @DisplayName("Probando relaciones entre las cuentas y el banco con assertAll")
+    @Disabled
     void testRelacionBancoCuentas() {
+        fail();
         Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
         Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
 
