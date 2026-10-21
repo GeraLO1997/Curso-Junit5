@@ -1044,4 +1044,164 @@ El import estático permite llamar directamente a `assertAll()`, `assertEquals()
 
 La idea principal: usa `assertAll()` cuando quieras validar varios resultados relacionados en una prueba y conocer todos los fallos del grupo en una sola ejecución.
 
+# Agregando mensajes de falla en los métodos Assertions de JUnit 5
+
+En JUnit 5 podemos agregar mensajes personalizados a las aserciones para entender mejor por qué una prueba falló. Esto es útil cuando tenemos muchas pruebas y necesitamos identificar rápidamente el problema.
+
+Una analogía: una aserción es como un inspector de calidad. No solo queremos que indique que algo salió mal; también queremos que explique qué esperaba encontrar y qué encontró realmente.
+
+## 1. Código de ejemplo
+
+```java
+@Test
+void test() {
+    Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+
+    String esperado = "Andres";
+    String real = cuenta.getPersona();
+
+    assertNotNull(real, () -> "La cuenta no puede ser nula");
+
+    assertEquals(esperado, real,
+            () -> "El nombre de la cuenta no es el que se esperaba: se esperaba "
+                    + esperado + ", sin embargo fue " + real);
+
+    assertTrue(real.equals("Andres"),
+            () -> "Nombre cuenta esperada debe ser igual a la real");
+}
+```
+
+Este test comprueba que el nombre obtenido de la cuenta no sea nulo y que sea igual a `"Andres"`.
+
+## 2. ¿Qué es un mensaje de falla?
+
+Es un texto que JUnit muestra cuando una aserción no se cumple. Sirve para describir el problema con palabras claras, en lugar de obligarnos a deducirlo únicamente a partir de los valores.
+
+| Aserción | ¿Qué comprueba? | Ejemplo de mensaje |
+|---|---|---|
+| `assertNotNull(real, mensaje)` | Que `real` no sea `null`. | `La cuenta no puede ser nula` |
+| `assertEquals(esperado, real, mensaje)` | Que ambos valores sean iguales. | Indica el valor esperado y el obtenido. |
+| `assertTrue(condicion, mensaje)` | Que la condición sea verdadera. | `Nombre cuenta esperada debe ser igual a la real` |
+
+Si `esperado` vale `"Andres"` y `real` vale `"Pedro"`, la segunda aserción puede mostrar un mensaje similar a:
+
+```text
+El nombre de la cuenta no es el que se esperaba: se esperaba Andres, sin embargo fue Pedro
+```
+
+## 3. ¿Por qué se utiliza `() ->` antes del mensaje?
+
+En el ejemplo se usa:
+
+```java
+assertNotNull(real, () -> "La cuenta no puede ser nula");
+```
+
+La expresión `() -> "La cuenta no puede ser nula"` es una **expresión lambda**. En este caso, proporciona el mensaje mediante un proveedor de texto (`Supplier<String>`).
+
+- `()` significa que la lambda no recibe parámetros.
+- `->` separa los parámetros del contenido que se devuelve.
+- `"La cuenta no puede ser nula"` es el texto que se proporciona si la aserción falla.
+
+JUnit también ofrece sobrecargas que reciben el mensaje directamente como `String`, por ejemplo:
+
+```java
+assertNotNull(real, "El nombre no debe ser nulo");
+```
+
+Usar una lambda para el mensaje permite que JUnit lo calcule solo si hace falta mostrarlo. Esto puede ser útil si construir el mensaje requiere trabajo adicional. Para un texto sencillo, ambas formas son válidas.
+
+## 4. Explicación de cada aserción
+
+### `assertNotNull()`
+
+```java
+assertNotNull(real, () -> "La cuenta no puede ser nula");
+```
+
+Comprueba que `real` no sea `null`.
+
+**Detalle importante:** la variable `real` contiene el nombre de la persona, no el objeto `Cuenta`. Por eso, un mensaje más preciso sería:
+
+```java
+assertNotNull(real, () -> "El nombre de la cuenta no puede ser nulo");
+```
+
+Si quisieras comprobar que el objeto completo no sea nulo, escribirías `assertNotNull(cuenta, ...)`.
+
+### `assertEquals()`
+
+```java
+assertEquals(esperado, real,
+        () -> "El nombre esperado era " + esperado
+                + ", pero se obtuvo " + real);
+```
+
+Compara el valor esperado con el valor real. Si no coinciden, JUnit informa el fallo y muestra el mensaje personalizado.
+
+En este caso:
+- `esperado`: lo que debería devolver el programa.
+- `real`: lo que devolvió el programa.
+- La lambda: la explicación adicional del fallo.
+
+Conviene incluir separadores y puntuación en el texto para que el mensaje sea fácil de leer.
+
+### `assertTrue()`
+
+```java
+assertTrue(real.equals("Andres"),
+        () -> "El nombre de la cuenta debe ser Andres");
+```
+
+Comprueba que la expresión dentro de `assertTrue()` sea verdadera. Si devuelve `false`, se muestra el mensaje.
+
+Sin embargo, esta comprobación es redundante en este ejemplo: `assertEquals(esperado, real, ...)` ya verifica que `real` sea igual a `"Andres"`, porque `esperado` contiene ese valor. En una prueba real normalmente basta con una de las dos comprobaciones.
+
+## 5. Versión recomendada del test
+
+Podemos dejar la prueba más clara usando una comprobación para el valor nulo y otra para la igualdad:
+
+```java
+@Test
+void test() {
+    Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+
+    String esperado = "Andres";
+    String real = cuenta.getPersona();
+
+    assertNotNull(real, () -> "El nombre de la cuenta no puede ser nulo");
+    assertEquals(esperado, real,
+            () -> "El nombre esperado era " + esperado
+                    + ", pero se obtuvo " + real);
+}
+```
+
+Esta versión evita comprobar dos veces la misma igualdad y utiliza mensajes más específicos.
+
+## 6. Importaciones necesarias
+
+Si usas las aserciones sin escribir `Assertions.` delante de cada método, normalmente tendrás una importación estática como esta:
+
+```java
+import static org.junit.jupiter.api.Assertions.*;
+```
+
+También necesitas las clases usadas en el ejemplo, por ejemplo:
+
+```java
+import java.math.BigDecimal;
+import org.junit.jupiter.api.Test;
+```
+
+Asegúrate de tener disponible la clase `Cuenta` en el paquete correspondiente.
+
+## Resumen
+
+- Un mensaje personalizado explica por qué falló una aserción.
+- `assertNotNull()` verifica que un valor no sea `null`.
+- `assertEquals()` compara el valor esperado con el real.
+- `assertTrue()` verifica que una condición sea verdadera.
+- `() -> "mensaje"` es una lambda que proporciona el texto de forma diferida.
+- Usa mensajes concretos y evita aserciones duplicadas cuando comprueban exactamente lo mismo.
+
 
