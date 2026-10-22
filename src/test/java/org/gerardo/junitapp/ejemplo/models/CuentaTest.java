@@ -6,9 +6,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.*;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*; // importamos estaticamente para no usar el Assert.
+import static org.junit.jupiter.api.Assumptions.*;
 
 class CuentaTest {
 
@@ -204,6 +206,38 @@ class CuentaTest {
 
     }
 
+    @Test
+    void imprimirVariablesAmbiente(){
+        Map<String, String> getenv = System.getenv();
+        getenv.forEach((k,v) -> System.out.println(k + " = " + v));
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "JAVA_HOME", matches = ".*jdk-21*")
+    void testJavaHome(){
+
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "NUMBER_OF_PROCESSORS", matches = "6")
+    void testProcesadores(){
+
+    }
+
+// Creamos una variable de ambiente llamada ENV=dev
+    @Test
+    @DisplayName("test saldo cuenta dev")
+    void testSaldoCuentaDev() {
+        boolean esDev = "dev".equals(System.getProperty("ENV"));
+        assumeTrue(esDev);
+        assumingThat(esDev, () -> {
+            assertNotNull(cuenta.getSaldo());
+            assertEquals(1000.12345, cuenta.getSaldo().doubleValue());
+            assertFalse(cuenta.getSaldo().compareTo(BigDecimal.ZERO) < 0);
+        });
+
+
+    }
 
 
 }

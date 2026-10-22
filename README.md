@@ -1667,3 +1667,190 @@ Importa solo las anotaciones que realmente uses.
 - `@EnabledIfEnvironmentVariable`: evalúa variables de entorno.
 - Una condición falsa hace que la prueba se omita, no que falle.
 
+# Tests condicionales con `@EnabledIfEnvironmentVariable` y `Assumptions` en JUnit 5
+
+JUnit 5 permite habilitar pruebas según variables de entorno y también abortarlas o ejecutar bloques opcionales con `Assumptions`.
+
+## 1. Consultar variables de entorno
+
+```java
+@Test
+void imprimirVariablesAmbiente() {
+    Map<String, String> getenv = System.getenv();
+    getenv.forEach((k, v) -> System.out.println(k + " = " + v));
+}
+```
+
+- `Map<String, String>` es una interfaz que representa pares de clave y valor.
+- `System.getenv()` devuelve las variables de entorno visibles para el proceso Java.
+- `forEach()` recorre el mapa.
+- `(k, v) -> ...` es una lambda: `k` representa la clave y `v` el valor.
+- `System.out.println()` imprime el par en consola.
+
+**Precaución:** las variables pueden contener contraseñas o tokens. Evita imprimirlas todas en logs compartidos.
+
+## 2. `@EnabledIfEnvironmentVariable`
+
+```java
+@Test
+@EnabledIfEnvironmentVariable(named = "JAVA_HOME", matches = ".*jdk-21.*")
+void testJavaHome() {
+    // Solo se ejecuta si JAVA_HOME contiene jdk-21.
+}
+
+@Test
+@EnabledIfEnvironmentVariable(named = "NUMBER_OF_PROCESSORS", matches = "6")
+void testProcesadores() {
+    // Solo se ejecuta si la variable vale exactamente 6.
+}
+```
+
+- `named` indica el nombre de la variable.
+- `matches` contiene una expresión regular.
+- `.*` significa cualquier secuencia de caracteres.
+- Si la variable no existe o no coincide, JUnit omite la prueba.
+
+En el ejemplo original aparecía `".*jdk-21*"`: `1*` significa cero o más caracteres `1`, **no** cualquier texto después de `21`. Para buscar la subcadena `jdk-21`, usa `".*jdk-21.*"`.
+
+`NUMBER_OF_PROCESSORS` es una variable habitual de Windows; la anotación no detecta directamente los procesadores. `JAVA_HOME` tampoco garantiza que esa sea la versión de Java con la que se ejecuta JUnit.
+
+## 3. Diferencia entre variable de entorno y propiedad de Java
+
+```java
+System.getenv("ENV");       // Variable de entorno del sistema operativo.
+System.getProperty("ENV"); // Propiedad de la JVM.
+```
+
+- `@EnabledIfEnvironmentVariable` consulta variables de entorno.
+- `@EnabledIfSystemProperty` consulta propiedades de la JVM.
+- La opción `-DENV=dev` configura una **propiedad de la JVM**, no una variable de entorno.
+
+En el código original se dice que `ENV=dev` es una variable de ambiente, pero se consulta con `System.getProperty("ENV")`. Debes elegir una de las dos opciones y usarla de forma consistente.
+
+## 4. `assumeTrue()`
+
+```java
+@Test
+void testSaldoCuentaDev() {
+    boolean esDev = "dev".equals(System.getenv("ENV"));
+    assumeTrue(esDev);
+
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000.12345")));
+}
+```
+
+- `boolean esDev` guarda si el entorno se llama `dev`.
+- `"dev".equals(...)` compara textos sin lanzar una excepción si el valor obtenido es `null`.
+- `assumeTrue(esDev)` permite continuar cuando la condición es verdadera. Si es falsa, **aborta** la prueba y JUnit la registra como abortada, no como fallida.
+- `assertNotNull()` verifica que el saldo exista.
+- `assertEquals()` verifica que `compareTo()` devuelva cero, es decir, igualdad numérica.
+
+Para que funcione, `cuenta` debe estar inicializada, por ejemplo en un método `@BeforeEach`.
+
+## 5. `assumingThat()`
+
+```java
+@Test
+void testSaldoConBloqueOpcional() {
+    boolean esDev = "dev".equals(System.getenv("ENV"));
+
+    assumingThat(esDev, () -> {
+        assertNotNull(cuenta.getSaldo());
+        assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000.12345")));
+    });
+
+    assertNotNull(cuenta.getPersona()); // Se ejecuta también si esDev es false.
+}
+```
+
+`assumingThat(condicion, () -> { ... })` ejecuta **solo el bloque** cuando la condición es verdadera. Si es falsa, omite ese bloque, pero **la prueba continúa** con las instrucciones posteriores.
+
+Diferencia esencial:
+
+| Método | Si la condición es falsa |
+|---|---|
+| `assumeTrue(esDev)` | Aborta el resto de la prueba. |
+| `assumingThat(esDev, lambda)` | Omite la lambda y continúa la prueba. |
+
+## 6. ¿Qué pasa al combinarlos como en el código original?
+
+```java
+boolean esDev = "dev".equals(System.getProperty("ENV"));
+assumeTrue(esDev);
+assumingThat(esDev, () -> {
+    assertNotNull(cuenta.getSaldo());
+});
+```
+
+Si `esDev` es falso, `assumeTrue()` aborta la prueba y nunca se llega a `assumingThat()`. Si es verdadero, el bloque se ejecuta. Por tanto, **usar ambos con la misma condición es redundante**: elige `assumeTrue` para abortar toda la prueba o `assumingThat` para ejecutar un bloque opcional.
+
+## 7. Ejemplo completo recomendado
+
+```java
+import java.math.BigDecimal;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.*;
+
+class CuentaTest {
+    private Cuenta cuenta;
+
+    @BeforeEach
+    void prepararCuenta() {
+        cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+    }
+
+    @Test
+    @DisplayName("El saldo de la cuenta es correcto en desarrollo")
+    void testSaldoCuentaDev() {
+        boolean esDev = "dev".equals(System.getenv("ENV"));
+        assumeTrue(esDev, "Esta prueba requiere ENV=dev");
+
+        assertNotNull(cuenta.getSaldo());
+        assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000.12345")));
+        assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) >= 0);
+    }
+}
+```
+
+Aquí `Cuenta` es la clase del proyecto bancario. Si está en otro paquete, importa la clase correspondiente. `BigDecimal.compareTo()` evita convertir el saldo a `double`, lo cual es recomendable al trabajar con dinero.
+
+## 8. Configurar `ENV` para probar
+
+**PowerShell (sesión actual):**
+
+```powershell
+$env:ENV = "dev"
+mvn test
+```
+
+**CMD (sesión actual):**
+
+```cmd
+set ENV=dev
+mvn test
+```
+
+**Linux/macOS (terminal):**
+
+```bash
+ENV=dev mvn test
+```
+
+Si en lugar de una variable de entorno quieres utilizar una propiedad de la JVM, consulta `System.getProperty("ENV")` y configura la propiedad con `-DENV=dev` en el proceso Java que ejecuta las pruebas.
+
+## Resumen
+
+- `@EnabledIfEnvironmentVariable`: habilita una prueba según una variable de entorno.
+- `System.getenv()`: consulta variables de entorno.
+- `System.getProperty()`: consulta propiedades de la JVM.
+- `assumeTrue()`: aborta una prueba cuando la condición es falsa.
+- `assumingThat()`: ejecuta un bloque solo cuando la condición es verdadera, sin abortar el resto.
+- No es necesario combinar `assumeTrue()` y `assumingThat()` con la misma condición.
+
+
