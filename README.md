@@ -1853,4 +1853,156 @@ Si en lugar de una variable de entorno quieres utilizar una propiedad de la JVM,
 - `assumingThat()`: ejecuta un bloque solo cuando la condición es verdadera, sin abortar el resto.
 - No es necesario combinar `assumeTrue()` y `assumingThat()` con la misma condición.
 
+# Clases test anidadas usando `@Nested` en JUnit 5
+
+`@Nested` permite agrupar métodos de prueba dentro de clases internas para organizar los tests por contexto. Es como crear carpetas dentro de una carpeta principal: cada grupo contiene pruebas relacionadas.
+
+## 1. Estructura básica
+
+```java
+class CuentaTest {
+    @Nested
+    class SistemaOperativoTest {
+        // Pruebas relacionadas con sistemas operativos
+    }
+}
+```
+
+- `CuentaTest` es la clase de pruebas principal.
+- `SistemaOperativoTest` es una clase interna **no estática**.
+- `@Nested` indica a JUnit Jupiter que descubra y ejecute las pruebas contenidas en esa clase interna.
+
+## 2. Ejemplo completo
+
+```java
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
+
+class CuentaTest {
+
+    @Nested
+    @DisplayName("Pruebas según el sistema operativo")
+    class SistemaOperativoTest {
+
+        @Test
+        @EnabledOnOs(OS.WINDOWS)
+        void testSoloWindows() {
+            // Comprobaciones exclusivas de Windows
+        }
+
+        @Test
+        @EnabledOnOs({OS.LINUX, OS.MAC})
+        void testSoloLinuxMac() {
+            // Comprobaciones para Linux o macOS
+        }
+
+        @Test
+        @DisabledOnOs(OS.WINDOWS)
+        void testNoWindows() {
+            // Comprobaciones para sistemas distintos de Windows
+        }
+    }
+}
+```
+
+### ¿Qué hace cada elemento?
+
+- `@Test`: identifica un método de prueba.
+- `@Nested`: agrupa pruebas dentro de una clase interna.
+- `@DisplayName`: asigna un nombre legible al grupo en el reporte.
+- `@EnabledOnOs`: habilita la prueba solo en los sistemas indicados.
+- `@DisabledOnOs`: deshabilita la prueba en los sistemas indicados.
+- `OS`: enum con constantes como `WINDOWS`, `LINUX` y `MAC`.
+
+Los cuerpos de los métodos están vacíos solo para ilustrar la organización. En pruebas reales deben incluir acciones y aserciones.
+
+## 3. ¿Cómo se muestran los resultados?
+
+Si ejecutas el ejemplo en Windows, un reporte puede mostrar:
+
+```text
+CuentaTest
+└── Pruebas según el sistema operativo
+    ├── testSoloWindows()   [ejecutado]
+    ├── testSoloLinuxMac()  [omitido]
+    └── testNoWindows()     [omitido]
+```
+
+`@Nested` no cambia las condiciones de ejecución; solamente organiza las pruebas.
+
+## 4. Agrupar pruebas por diferentes contextos
+
+También puedes organizar pruebas bancarias por funcionalidad:
+
+```java
+class CuentaTest {
+
+    @Nested
+    @DisplayName("Pruebas del saldo")
+    class SaldoTest {
+        @Test
+        void saldoInicial() {
+            // Verificar saldo inicial
+        }
+    }
+
+    @Nested
+    @DisplayName("Pruebas de transferencias")
+    class TransferenciasTest {
+        @Test
+        void transferirDinero() {
+            // Verificar transferencia
+        }
+    }
+}
+```
+
+Así separas los tests por comportamiento sin necesidad de crear una clase de nivel superior para cada grupo.
+
+## 5. Relación con el ciclo de vida
+
+Las clases anidadas pueden utilizar `@BeforeEach` y `@AfterEach`. En una prueba anidada, JUnit también ejecuta los métodos de preparación y limpieza aplicables de las clases contenedoras. Esto permite compartir una configuración general y agregar preparación específica en cada grupo.
+
+Ejemplo:
+
+```java
+class CuentaTest {
+    @BeforeEach
+    void prepararGeneral() {
+        System.out.println("Preparación general");
+    }
+
+    @Nested
+    class SaldoTest {
+        @BeforeEach
+        void prepararSaldo() {
+            System.out.println("Preparación del saldo");
+        }
+
+        @Test
+        void probarSaldo() {
+            System.out.println("Prueba del saldo");
+        }
+    }
+}
+```
+
+En ese ejemplo, antes de `probarSaldo()` se ejecuta primero `prepararGeneral()` y luego `prepararSaldo()`.
+
+## 6. Buenas prácticas
+
+- Agrupa pruebas que compartan un mismo contexto o comportamiento.
+- Usa `@DisplayName` para nombrar claramente cada grupo.
+- Evita crear niveles de anidamiento innecesarios.
+- Recuerda que `@Nested` se utiliza en clases internas no estáticas.
+- Las pruebas deben tener aserciones útiles; un método `@Test` vacío puede pasar sin verificar nada.
+
+## Resumen
+
+`@Nested` organiza los tests por grupos dentro de una clase principal. `@DisplayName` ayuda a identificar esos grupos en el reporte, y las anotaciones condicionales siguen funcionando dentro de las clases anidadas.
+
 
