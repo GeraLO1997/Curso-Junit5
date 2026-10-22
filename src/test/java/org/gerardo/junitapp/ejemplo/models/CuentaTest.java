@@ -4,6 +4,8 @@ import org.gerardo.junitapp.ejemplo.exceptions.DineroInsuficienteException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -278,6 +280,16 @@ class CuentaTest {
         assertNotNull(cuenta.getSaldo());
         assertEquals(900, cuenta.getSaldo().intValue()); // lo verificamos como un entero
         assertEquals("900.12345", cuenta.getSaldo().toPlainString()); // lo verificamos como un string
+
+    }
+
+    @ParameterizedTest(name = "numero {index} ejecutando con valor {0} - {argumentsWithNames}")
+    @ValueSource(strings = {"100","200","300","500","700","1000.1234"})
+    void testDebitoCuenta(String monto) {
+        cuenta.debito(new BigDecimal(monto));
+
+        assertNotNull(cuenta.getSaldo());
+        assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) > 0); // lo verificamos como un entero
 
     }
 

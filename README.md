@@ -2102,4 +2102,118 @@ import static org.junit.jupiter.api.Assertions.*;
 
 `@RepeatedTest(5)` repite la prueba cinco veces. `RepetitionInfo` informa en cuál repetición estamos. `@DisplayName` y los marcadores del atributo `name` permiten personalizar los nombres. Usa `@BeforeEach` para preparar una cuenta limpia en cada repetición y evitar dependencias entre pruebas.
 
+# Pruebas parametrizadas con `@ParameterizedTest` y `@ValueSource` en JUnit 5
+
+Las pruebas parametrizadas permiten ejecutar un mismo método de prueba con diferentes datos. Imagina un cajero automático: queremos verificar retiros de $100, $200, $300 y otros montos sin copiar el test varias veces.
+
+## 1. Código original
+
+```java
+@ParameterizedTest(name = "numero {index} ejecutando con valor {0} - {argumentsWithNames}")
+@ValueSource(strings = {"100", "200", "300", "500", "700", "1000.1234"})
+void testDebitoCuenta(String monto) {
+    cuenta.debito(new BigDecimal(monto));
+    assertNotNull(cuenta.getSaldo());
+    assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) > 0);
+}
+```
+
+## 2. ¿Qué hace cada elemento?
+
+- `@ParameterizedTest`: identifica una prueba que recibe argumentos y se ejecuta una vez por cada conjunto de datos.
+- `@ValueSource`: proporciona valores individuales del mismo tipo. En este caso `strings` entrega seis cadenas.
+- `String monto`: parámetro que recibe uno de los valores en cada ejecución.
+- `new BigDecimal(monto)`: convierte el texto a un número decimal exacto, útil para dinero.
+- `cuenta.debito(...)`: descuenta el monto del saldo de la cuenta.
+- `assertNotNull(...)`: comprueba que el saldo no sea `null`.
+- `BigDecimal.ZERO`: representa el cero decimal.
+- `compareTo(BigDecimal.ZERO)`: devuelve positivo si el saldo es mayor que cero, cero si es igual y negativo si es menor.
+- `assertTrue(... > 0)`: verifica que el saldo resultante sea estrictamente positivo.
+
+## 3. ¿Qué significa `name`?
+
+```java
+@ParameterizedTest(name = "numero {index} ejecutando con valor {0} - {argumentsWithNames}")
+```
+
+- `{index}`: número de invocación, comenzando en 1.
+- `{0}`: valor del primer argumento de esa invocación.
+- `{argumentsWithNames}`: representación de los argumentos con sus nombres cuando están disponibles.
+
+Así es más fácil identificar qué dato provocó un fallo.
+
+## 4. Resultado de los seis casos
+
+Si `@BeforeEach` crea una cuenta nueva con saldo `1000.12345` antes de cada invocación, los resultados serían:
+
+| Monto | Saldo final | ¿Es mayor que cero? |
+|---:|---:|---|
+| 100 | 900.12345 | Sí |
+| 200 | 800.12345 | Sí |
+| 300 | 700.12345 | Sí |
+| 500 | 500.12345 | Sí |
+| 700 | 300.12345 | Sí |
+| 1000.1234 | 0.00005 | Sí |
+
+**Importante:** cada invocación debe comenzar con el saldo inicial esperado. Por ejemplo:
+
+```java
+private Cuenta cuenta;
+
+@BeforeEach
+void prepararCuenta() {
+    cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+}
+```
+
+JUnit ejecuta `@BeforeEach` antes de cada invocación de la prueba parametrizada.
+
+## 5. ¿Qué verifica realmente la prueba?
+
+La prueba comprueba que, después del débito, el saldo no sea nulo y sea **mayor que cero**. No comprueba directamente que el monto descontado sea exactamente el correcto.
+
+Una versión más completa calcula el saldo esperado:
+
+```java
+@ParameterizedTest(name = "Débito {index}: monto {0}")
+@ValueSource(strings = {"100", "200", "300", "500", "700", "1000.1234"})
+void testDebitoCuenta(String monto) {
+    BigDecimal saldoInicial = new BigDecimal("1000.12345");
+    BigDecimal debito = new BigDecimal(monto);
+    BigDecimal saldoEsperado = saldoInicial.subtract(debito);
+
+    cuenta.debito(debito);
+
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(0, saldoEsperado.compareTo(cuenta.getSaldo()));
+}
+```
+
+`subtract()` es un método de `BigDecimal` que devuelve la resta sin modificar el objeto original. `assertEquals(0, ...compareTo(...))` verifica la igualdad numérica, incluso si cambia la escala decimal.
+
+## 6. Diferencia con `@RepeatedTest`
+
+- `@RepeatedTest(6)` repite el test seis veces; normalmente se utilizan los mismos datos salvo que el propio test los cambie.
+- `@ParameterizedTest` junto con `@ValueSource` ejecuta el test una vez por cada dato proporcionado.
+
+Para probar montos diferentes, las pruebas parametrizadas son más adecuadas.
+
+## 7. Importaciones
+
+```java
+import java.math.BigDecimal;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+```
+
+Además, necesitas la clase `Cuenta` en el paquete correspondiente. En Maven, verifica que tu proyecto tenga soporte para `junit-jupiter-params` (normalmente incluido si usas `spring-boot-starter-test`).
+
+## Resumen
+
+`@ParameterizedTest` define una prueba que recibe datos; `@ValueSource` proporciona esos datos; el método se ejecuta una vez por cada valor. Es útil para probar múltiples entradas sin duplicar código. Para comprobar un débito, comparar el saldo final con el saldo esperado ofrece una verificación más fuerte que comprobar únicamente que el saldo sea positivo.
+
 
