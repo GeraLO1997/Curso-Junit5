@@ -1339,3 +1339,174 @@ Si ya utilizas `import static org.junit.jupiter.api.Assertions.*;`, no necesitas
 - `fail()`: fuerza un fallo si se ejecuta.
 - En el ejemplo original, `@Disabled` impide que se alcance `fail()`.
 
+# Ciclo de vida en JUnit 5: `@BeforeEach`, `@AfterEach`, `@BeforeAll` y `@AfterAll`
+
+En JUnit 5, las anotaciones del ciclo de vida permiten ejecutar código automáticamente antes y después de las pruebas. Sirven para preparar objetos, inicializar recursos y limpiar lo que se utilizó.
+
+Imagina que vas a probar una cuenta bancaria varias veces:
+- Antes de cada prueba, creas una cuenta con un saldo inicial.
+- Ejecutas la prueba.
+- Después de cada prueba, limpias los recursos utilizados si hace falta.
+- Cuando termina todo el grupo, cierras los recursos compartidos.
+
+## 1. ¿Qué hace cada anotación?
+
+| Anotación | ¿Cuándo se ejecuta? | Uso habitual |
+|---|---|---|
+| `@BeforeEach` | Antes de cada método de prueba. | Crear objetos y preparar datos. |
+| `@AfterEach` | Después de cada método de prueba. | Limpiar o restablecer recursos. |
+| `@BeforeAll` | Una vez antes de las pruebas de la clase. | Preparar recursos compartidos. |
+| `@AfterAll` | Una vez después de las pruebas de la clase. | Liberar recursos compartidos. |
+
+`Each` significa “cada una”; `All` significa “todas”.
+
+## 2. Ejemplo completo
+
+```java
+import java.math.BigDecimal;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class CuentaTest {
+    private Cuenta cuenta;
+
+    @BeforeAll
+    static void iniciarPruebas() {
+        System.out.println("Preparación general");
+    }
+
+    @BeforeEach
+    void prepararCuenta() {
+        cuenta = new Cuenta("Andres", new BigDecimal("1000.00"));
+        System.out.println("Se creó una cuenta para esta prueba");
+    }
+
+    @Test
+    void comprobarNombre() {
+        assertEquals("Andres", cuenta.getPersona());
+    }
+
+    @Test
+    void comprobarSaldoInicial() {
+        assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000.00")));
+    }
+
+    @AfterEach
+    void limpiarPrueba() {
+        System.out.println("Terminó esta prueba");
+    }
+
+    @AfterAll
+    static void finalizarPruebas() {
+        System.out.println("Finalizaron todas las pruebas");
+    }
+}
+```
+
+El ejemplo utiliza la clase `Cuenta` vista en los apuntes anteriores. Agrega su importación si se encuentra en otro paquete.
+
+## 3. `@BeforeEach`: preparar cada prueba
+
+```java
+@BeforeEach
+void prepararCuenta() {
+    cuenta = new Cuenta("Andres", new BigDecimal("1000.00"));
+}
+```
+
+Se ejecuta antes de cada método `@Test`. Si tienes tres pruebas, se ejecutará tres veces y creará una cuenta nueva para cada una.
+
+**Analogía:** es como entregar una hoja nueva a cada estudiante antes de un examen. Cada prueba empieza con sus propios datos y no depende de lo que haya cambiado otra.
+
+## 4. `@AfterEach`: limpiar después de cada prueba
+
+```java
+@AfterEach
+void limpiarPrueba() {
+    System.out.println("Terminó esta prueba");
+}
+```
+
+Se ejecuta después de cada prueba, incluso si una aserción falla. Puede servir para cerrar recursos, borrar archivos temporales o restablecer datos.
+
+No es obligatorio tener este método si no hay nada que limpiar.
+
+## 5. `@BeforeAll`: preparar una sola vez
+
+```java
+@BeforeAll
+static void iniciarPruebas() {
+    System.out.println("Preparación general");
+}
+```
+
+Se ejecuta una vez antes de las pruebas de la clase. Puede preparar un recurso costoso que se compartirá, como una infraestructura de prueba.
+
+Por defecto, el método debe ser `static`. JUnit ejecuta esta preparación antes de usar la instancia individual de prueba. Puede evitarse la restricción de `static` configurando `@TestInstance(TestInstance.Lifecycle.PER_CLASS)`.
+
+No lo uses para datos que deban reiniciarse en cada prueba; para eso suele ser mejor `@BeforeEach`.
+
+## 6. `@AfterAll`: finalizar una sola vez
+
+```java
+@AfterAll
+static void finalizarPruebas() {
+    System.out.println("Finalizaron todas las pruebas");
+}
+```
+
+Se ejecuta una vez al terminar las pruebas de la clase. Se utiliza para cerrar o liberar recursos compartidos preparados con `@BeforeAll`.
+
+Por defecto también debe ser `static`, salvo que se configure el ciclo de vida `PER_CLASS`.
+
+## 7. Orden de ejecución
+
+Con dos pruebas, el ciclo habitual es:
+
+```text
+@BeforeAll
+    |
+@BeforeEach
+    |
+@Test prueba 1
+    |
+@AfterEach
+    |
+@BeforeEach
+    |
+@Test prueba 2
+    |
+@AfterEach
+    |
+@AfterAll
+```
+
+JUnit no garantiza un orden fijo entre los métodos `@Test` por defecto. Lo importante es que la preparación y la limpieza rodeen cada prueba.
+
+## 8. ¿Por qué se usa `compareTo()` para `BigDecimal`?
+
+```java
+assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000.00")));
+```
+
+`compareTo()` devuelve un número negativo si el valor es menor, `0` si es numéricamente igual y uno positivo si es mayor. Por eso permite comparar `1000.0` con `1000.00` sin que la escala decimal cause una diferencia. En cambio, `BigDecimal.equals()` distingue esas escalas.
+
+## 9. Buenas prácticas
+
+- Usa `@BeforeEach` para preparar datos independientes en cada prueba.
+- Usa `@BeforeAll` y `@AfterAll` para recursos compartidos.
+- Recuerda que `@BeforeAll` y `@AfterAll` normalmente deben ser `static`.
+- Evita que una prueba dependa de que otra se ejecute primero.
+- No agregues métodos de limpieza si no hay nada que limpiar.
+
+## Resumen
+
+- `@BeforeEach`: prepara cada prueba.
+- `@AfterEach`: limpia después de cada prueba.
+- `@BeforeAll`: prepara una vez antes de todas las pruebas de la clase.
+- `@AfterAll`: limpia una vez después de todas las pruebas de la clase.
+
