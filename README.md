@@ -2216,4 +2216,132 @@ Además, necesitas la clase `Cuenta` en el paquete correspondiente. En Maven, ve
 
 `@ParameterizedTest` define una prueba que recibe datos; `@ValueSource` proporciona esos datos; el método se ejecuta una vez por cada valor. Es útil para probar múltiples entradas sin duplicar código. Para comprobar un débito, comparar el saldo final con el saldo esperado ofrece una verificación más fuerte que comprobar únicamente que el saldo sea positivo.
 
+# Pruebas parametrizadas con `@CsvSource`, `@CsvFileSource` y `@MethodSource`
+
+Estas anotaciones proporcionan diferentes conjuntos de datos a una misma prueba `@ParameterizedTest`.
+
+## 1. `@CsvSource`: datos escritos dentro del código
+
+```java
+@ParameterizedTest(name = "Caso {index}: monto {1}")
+@CsvSource({"1,100", "2,200", "3,300", "4,500", "5,700", "6,1000.1234"})
+void testDebitoCuentaCsvSource(String index, String monto) {
+    System.out.println(index + " -> " + monto);
+    cuenta.debito(new BigDecimal(monto));
+    assertNotNull(cuenta.getSaldo());
+    assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) > 0);
+}
+```
+
+Cada cadena representa una fila CSV con **dos columnas**. JUnit asigna la primera a `index` y la segunda a `monto`. `{index}` en el nombre del test es el número automático de invocación (empieza en 1); `{0}` y `{1}` representan el primer y segundo argumentos. La variable `index` de tu método es distinta del marcador `{index}` de JUnit.
+
+## 2. `@CsvFileSource`: datos desde un archivo CSV
+
+```java
+@ParameterizedTest
+@CsvFileSource(resources = "/data.csv")
+void testDebitoCuentaCsvFileSource(String monto) {
+    cuenta.debito(new BigDecimal(monto));
+    assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) > 0);
+}
+```
+
+El archivo debe estar en `src/test/resources/data.csv` (en un proyecto Maven convencional). Para este método con **un parámetro**, el archivo debe tener una columna por fila:
+
+```csv
+100
+200
+300
+500
+700
+1000.1234
+```
+
+Si reutilizas las filas de `@CsvSource` (`1,100`, `2,200`, etc.), cada fila tendrá dos columnas, pero el método solo recibe un argumento. **Ese desajuste es una causa probable de que falle o se comporte distinto el test de archivo.** Puedes adaptar el método a `void testDebitoCuentaCsvFileSource(String index, String monto)` o modificar el CSV para dejar una sola columna. Si el archivo tiene encabezado, usa `numLinesToSkip = 1`.
+
+## 3. `@MethodSource`: datos desde un método Java
+
+```java
+@ParameterizedTest
+@MethodSource("montoList")
+void testDebitoCuentaMethodSource(String monto) {
+    cuenta.debito(new BigDecimal(monto));
+    assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) > 0);
+}
+
+private static List<String> montoList() {
+    return Arrays.asList("100", "200", "300", "500", "700", "1000.1234");
+}
+```
+
+`@MethodSource("montoList")` busca el método que genera los argumentos. `List<String>` es una interfaz que representa una lista de cadenas; `Arrays.asList(...)` construye una lista a partir de los valores. El método proveedor normalmente debe ser `static`, salvo cuando se utiliza el ciclo de vida `@TestInstance(PER_CLASS)`.
+
+## 4. ¿Por qué puede fallar el último monto?
+
+Si el saldo inicial es `1000.12345`, retirar `1000.1234` deja exactamente `0.00005`, que es **positivo**:
+
+```text
+1000.12345 - 1000.1234 = 0.00005
+```
+
+En ese caso `assertTrue(saldo.compareTo(BigDecimal.ZERO) > 0)` debe pasar. Revisa:
+
+1. **Saldo inicial:** si es `1000`, el débito de `1000.1234` supera el saldo y tu implementación puede lanzar `DineroInsuficienteException`.
+2. **Reinicio de cuenta:** crea una cuenta nueva en `@BeforeEach` para cada invocación parametrizada.
+3. **Formato del CSV:** verifica que `data.csv` tenga el mismo número de columnas que los parámetros del método.
+4. **Datos exactos:** imprime monto y saldo para detectar diferencias.
+
+```java
+@BeforeEach
+void prepararCuenta() {
+    cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+}
+```
+
+## 5. Prueba más precisa
+
+Comprobar solamente que el saldo sea positivo no garantiza que se haya descontado el monto correcto. Puedes calcular el saldo esperado:
+
+```java
+@ParameterizedTest(name = "Débito de {0}")
+@ValueSource(strings = {"100", "200", "300", "500", "700", "1000.1234"})
+void testDebitoExacto(String monto) {
+    BigDecimal saldoInicial = cuenta.getSaldo();
+    BigDecimal cantidad = new BigDecimal(monto);
+    BigDecimal saldoEsperado = saldoInicial.subtract(cantidad);
+
+    cuenta.debito(cantidad);
+
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(0, saldoEsperado.compareTo(cuenta.getSaldo()));
+}
+```
+
+`BigDecimal` es inmutable: `subtract()` devuelve un nuevo valor y `compareTo()` devuelve cero cuando los valores son numéricamente iguales, incluso si difiere su escala decimal.
+
+## 6. Importaciones
+
+```java
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import static org.junit.jupiter.api.Assertions.*;
+```
+
+## Resumen
+
+- `@CsvSource`: datos separados por comas definidos en la anotación.
+- `@CsvFileSource`: datos leídos de un archivo CSV en recursos de prueba.
+- `@MethodSource`: datos devueltos por un método Java.
+- Cada invocación parametrizada ejecuta también `@BeforeEach`.
+- El último monto `1000.1234` debe dejar `0.00005` si el saldo inicial es `1000.12345`.
+- Para identificar un fallo concreto, revisa el saldo inicial, la excepción y el contenido de `data.csv`.
+
+
 
