@@ -266,6 +266,21 @@ class CuentaTest {
 
     }
 
+    @DisplayName("Prueba debito")
+    @RepeatedTest(value=5, name = "{displayName} - Repeticion numero {currentRepetition} de {totalRepetitions}")
+    void testDebitoCuentaRepetir(RepetitionInfo info) {
+        if (info.getCurrentRepetition() == 3){
+            System.out.println("estamos en la repeticion " + info.getCurrentRepetition());
+        }
+
+        cuenta.debito(new BigDecimal(100)); // esperado 900.12345
+
+        assertNotNull(cuenta.getSaldo());
+        assertEquals(900, cuenta.getSaldo().intValue()); // lo verificamos como un entero
+        assertEquals("900.12345", cuenta.getSaldo().toPlainString()); // lo verificamos como un string
+
+    }
+
 
 
 

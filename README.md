@@ -2005,4 +2005,101 @@ En ese ejemplo, antes de `probarSaldo()` se ejecuta primero `prepararGeneral()` 
 
 `@Nested` organiza los tests por grupos dentro de una clase principal. `@DisplayName` ayuda a identificar esos grupos en el reporte, y las anotaciones condicionales siguen funcionando dentro de las clases anidadas.
 
+# Repitiendo pruebas con `@RepeatedTest` en JUnit 5
+
+`@RepeatedTest` permite ejecutar el mismo método de prueba varias veces. Es útil para comprobar que un comportamiento sigue funcionando en ejecuciones repetidas.
+
+## 1. Ejemplo
+
+```java
+@DisplayName("Prueba debito")
+@RepeatedTest(value = 5,
+    name = "{displayName} - Repeticion numero {currentRepetition} de {totalRepetitions}")
+void testDebitoCuentaRepetir(RepetitionInfo info) {
+    if (info.getCurrentRepetition() == 3) {
+        System.out.println("estamos en la repeticion " + info.getCurrentRepetition());
+    }
+
+    cuenta.debito(new BigDecimal(100));
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(900, cuenta.getSaldo().intValue());
+    assertEquals("900.12345", cuenta.getSaldo().toPlainString());
+}
+```
+
+## 2. Explicación de cada elemento
+
+- `@RepeatedTest`: marca un método como prueba repetida; no necesita `@Test` adicional.
+- `value = 5`: ejecuta cinco repeticiones.
+- `name`: configura el nombre que aparece en los resultados.
+- `{displayName}`: inserta el texto de `@DisplayName`.
+- `{currentRepetition}`: inserta el número de repetición actual, de 1 a 5.
+- `{totalRepetitions}`: inserta el número total de repeticiones.
+- `RepetitionInfo`: interfaz de JUnit que proporciona información sobre la repetición.
+- `info.getCurrentRepetition()`: obtiene el número de repetición actual.
+- `cuenta.debito(...)`: método de la clase `Cuenta` que resta dinero del saldo.
+- `assertNotNull(...)`: comprueba que el saldo no sea nulo.
+- `assertEquals(...)`: compara el valor esperado con el real.
+- `intValue()`: convierte el saldo a entero, descartando la parte decimal; no sirve para verificar centavos.
+- `toPlainString()`: convierte el `BigDecimal` a texto sin notación científica y conserva sus decimales.
+
+## 3. ¿Qué ocurre en la repetición 3?
+
+```java
+if (info.getCurrentRepetition() == 3) {
+    System.out.println("estamos en la repeticion 3");
+}
+```
+
+El mensaje se imprime solo durante la tercera repetición. La operación de débito y las aserciones se ejecutan en las cinco.
+
+## 4. ¿Se descuenta dinero cinco veces de la misma cuenta?
+
+**No necesariamente.** Con el ciclo de vida predeterminado de JUnit 5 (`PER_METHOD`), se crea una nueva instancia de la clase de prueba para cada repetición. Además, `@BeforeEach` se ejecuta antes de cada repetición. Si ahí inicializas `cuenta` con `1000.12345`, cada repetición parte de ese saldo y termina en `900.12345`.
+
+```java
+private Cuenta cuenta;
+
+@BeforeEach
+void prepararCuenta() {
+    cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+}
+```
+
+Si compartes la misma cuenta entre repeticiones mediante un campo `static`, un recurso compartido o una configuración de ciclo de vida distinta, el saldo puede acumular los débitos y las pruebas dejarán de comportarse como en el ejemplo. Evita compartir estado mutable cuando las pruebas deban ser independientes.
+
+## 5. Versión recomendada
+
+Para comprobar dinero, evita convertir `BigDecimal` a `int` porque se pierden decimales. Puedes comparar el valor numérico con `compareTo()`:
+
+```java
+@DisplayName("Prueba débito")
+@RepeatedTest(value = 5,
+    name = "{displayName} - Repetición {currentRepetition} de {totalRepetitions}")
+void testDebitoCuentaRepetir(RepetitionInfo info) {
+    cuenta.debito(new BigDecimal("100"));
+
+    assertNotNull(cuenta.getSaldo());
+    assertEquals(0,
+        cuenta.getSaldo().compareTo(new BigDecimal("900.12345")));
+}
+```
+
+`BigDecimal.compareTo()` devuelve `0` cuando los valores son numéricamente iguales, aunque tengan distinta escala decimal. Si necesitas comprobar también la representación decimal exacta, `toPlainString()` puede ser apropiado.
+
+## 6. Importaciones
+
+```java
+import java.math.BigDecimal;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.RepetitionInfo;
+import static org.junit.jupiter.api.Assertions.*;
+```
+
+## Resumen
+
+`@RepeatedTest(5)` repite la prueba cinco veces. `RepetitionInfo` informa en cuál repetición estamos. `@DisplayName` y los marcadores del atributo `name` permiten personalizar los nombres. Usa `@BeforeEach` para preparar una cuenta limpia en cada repetición y evitar dependencias entre pruebas.
+
 
