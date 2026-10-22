@@ -2344,4 +2344,143 @@ import static org.junit.jupiter.api.Assertions.*;
 - Para identificar un fallo concreto, revisa el saldo inicial, la excepción y el contenido de `data.csv`.
 
 
+# Pruebas parametrizadas: agregando más atributos con `@CsvSource` y `@CsvFileSource`
+
+JUnit 5 permite suministrar varios argumentos en cada ejecución de una prueba parametrizada. Cada fila CSV representa un escenario y cada columna se asigna a un parámetro del método.
+
+## 1. Ejemplo con cuatro argumentos
+
+```java
+@ParameterizedTest(name = "numero {index} ejecutando con valor {0} - {argumentsWithNames}")
+@CsvSource({
+    "200,100,John,Andres",
+    "250,200,Pepe,Pepe",
+    "299,300,maria,Maria",
+    "400,500,Lucas,Luca",
+    "750,700,Cata,Cata",
+    "1000.1234,1000.1234,Cata,Cata"
+})
+void testDebitoCuentaCsvSource2(String saldo, String monto,
+                               String esperado, String actual) {
+    cuenta.setPersona(actual);
+    cuenta.setSaldo(new BigDecimal(saldo));
+    cuenta.debito(new BigDecimal(monto));
+
+    assertNotNull(cuenta.getPersona());
+    assertEquals(esperado, actual);
+    assertNotNull(cuenta.getSaldo());
+    assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) > 0);
+}
+```
+
+Las columnas corresponden, en orden, a `saldo`, `monto`, `esperado` y `actual`. La prueba se ejecuta seis veces.
+
+## 2. Diagnóstico de las filas
+
+| Datos | Resultado esperado |
+|---|---|
+| `200,100,John,Andres` | El saldo queda en 100, pero falla la comparación de nombres. |
+| `250,200,Pepe,Pepe` | El saldo queda en 50 y coinciden los nombres. |
+| `299,300,maria,Maria` | Con la validación anterior de `debito`, se lanza `DineroInsuficienteException` antes de las aserciones. Además, los nombres no coinciden. |
+| `400,500,Lucas,Luca` | Se lanza la excepción por saldo insuficiente; también difieren los nombres. |
+| `750,700,Cata,Cata` | El saldo queda en 50 y coinciden los nombres. |
+| `1000.1234,1000.1234,Cata,Cata` | El saldo queda en cero; falla la condición `> 0`. |
+
+`BigDecimal.compareTo(BigDecimal.ZERO)` devuelve `0` cuando el saldo es cero. Si la regla permite saldos de cero, utiliza `>= 0`.
+
+## 3. Comparar el nombre de la cuenta
+
+En tu prueba aparece:
+
+```java
+assertEquals(esperado, actual);
+```
+
+Eso compara dos parámetros que llegan del CSV, pero no lee directamente el estado de la cuenta. Una comprobación más útil es:
+
+```java
+assertEquals(esperado, cuenta.getPersona());
+```
+
+Así compruebas el valor que realmente quedó guardado en el objeto `Cuenta`.
+
+## 4. Comprobar el saldo exacto
+
+Si se permite dejar la cuenta en cero, puedes calcular el resultado esperado:
+
+```java
+BigDecimal saldoInicial = new BigDecimal(saldo);
+BigDecimal cantidad = new BigDecimal(monto);
+BigDecimal saldoEsperado = saldoInicial.subtract(cantidad);
+
+cuenta.setSaldo(saldoInicial);
+cuenta.debito(cantidad);
+
+assertEquals(0, saldoEsperado.compareTo(cuenta.getSaldo()));
+```
+
+Para escenarios con fondos insuficientes, escribe otra prueba que compruebe `assertThrows(DineroInsuficienteException.class, ...)`. No mezcles en una misma prueba parametrizada escenarios que deberían terminar con éxito y otros que deberían lanzar una excepción sin distinguirlos.
+
+## 5. Ejemplo con `@CsvFileSource`
+
+```java
+@ParameterizedTest
+@CsvFileSource(resources = "/data2.csv")
+void testDebitoCuentaCsvFileSource2(String saldo, String monto,
+                                   String esperado, String actual) {
+    cuenta.setPersona(actual);
+    cuenta.setSaldo(new BigDecimal(saldo));
+    cuenta.debito(new BigDecimal(monto));
+    assertEquals(esperado, cuenta.getPersona());
+    assertTrue(cuenta.getSaldo().compareTo(BigDecimal.ZERO) >= 0);
+}
+```
+
+Ubica `data2.csv` en `src/test/resources/data2.csv` para que `/data2.csv` se encuentre en la raíz del classpath de pruebas. El archivo puede contener:
+
+```csv
+200,100,John,Andres
+250,200,Pepe,Pepe
+299,300,maria,Maria
+400,500,Lucas,Luca
+750,700,Cata,Cata
+1000.1234,1000.1234,Cata,Cata
+```
+
+El archivo reproduce intencionalmente escenarios que fallan; para una prueba de éxito usa solamente filas válidas. Si agregas una cabecera, configura `numLinesToSkip = 1`.
+
+**Importante:** `@CsvFileSource` asigna columnas a los parámetros según su orden. Si `data.csv` tiene dos columnas pero el método recibe un único parámetro `monto`, puede terminar recibiendo la primera columna en lugar del importe deseado. Haz coincidir la estructura del archivo con la firma del método.
+
+## 6. El atributo `name`
+
+```java
+@ParameterizedTest(name = "numero {index} ejecutando con valor {0} - {argumentsWithNames}")
+```
+
+- `{index}`: número de ejecución, empezando en 1.
+- `{0}`: primer argumento de la fila; en la segunda prueba es el saldo, no el monto.
+- `{argumentsWithNames}`: representación de los argumentos con nombres cuando están disponibles.
+
+Si quieres mostrar el monto de la prueba con cuatro parámetros, utiliza `{1}`.
+
+## 7. Importaciones
+
+```java
+import java.math.BigDecimal;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.CsvFileSource;
+import static org.junit.jupiter.api.Assertions.*;
+```
+
+Además, importa la clase `Cuenta` y la excepción personalizada si tu prueba las utiliza.
+
+## Resumen
+
+- `@CsvSource` proporciona varias filas y columnas directamente en el código.
+- `@CsvFileSource` carga los argumentos desde un archivo CSV.
+- Cada columna se asigna a un parámetro del método.
+- Comprueba el estado del objeto, no solo los argumentos de entrada.
+- Distingue entre débitos válidos, saldo cero y fondos insuficientes.
+- Usa `assertThrows` cuando el resultado correcto sea una excepción.
 
