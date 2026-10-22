@@ -1510,3 +1510,160 @@ assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000.00")));
 - `@BeforeAll`: prepara una vez antes de todas las pruebas de la clase.
 - `@AfterAll`: limpia una vez después de todas las pruebas de la clase.
 
+# Tests condicionales en JUnit 5
+
+JUnit 5 permite ejecutar u omitir pruebas según el sistema operativo, la versión de Java o las propiedades del entorno.
+
+## 1. Anotaciones principales
+
+| Anotación | Función |
+|---|---|
+| `@EnabledOnOs` | Ejecuta solo en los sistemas operativos indicados. |
+| `@DisabledOnOs` | Omite la prueba en los sistemas operativos indicados. |
+| `@EnabledOnJre` | Ejecuta solo en las versiones de Java indicadas. |
+| `@EnabledIfSystemProperty` | Ejecuta si una propiedad de la JVM coincide con una condición. |
+| `@EnabledIfEnvironmentVariable` | Ejecuta si una variable de entorno coincide con una condición. |
+
+Si la condición no se cumple, JUnit omite la prueba; no significa que haya fallado.
+
+## 2. Condiciones por sistema operativo
+
+```java
+@Test
+@EnabledOnOs(OS.WINDOWS)
+void testSoloWindows() {
+    // Solo se ejecuta en Windows.
+}
+
+@Test
+@EnabledOnOs({OS.LINUX, OS.MAC})
+void testSoloLinuxMac() {
+    // Se ejecuta en Linux o macOS.
+}
+
+@Test
+@DisabledOnOs(OS.WINDOWS)
+void testNoWindows() {
+    // Se omite en Windows; se habilita en otros sistemas.
+}
+```
+
+`OS` es un enum de JUnit con constantes que representan sistemas operativos. Las llaves `{ ... }` permiten indicar varios sistemas.
+
+## 3. Condiciones por versión de Java
+
+```java
+@Test
+@EnabledOnJre(JRE.JAVA_8)
+void soloJdk8() {
+    // Solo se ejecuta con Java 8.
+}
+
+@Test
+@EnabledOnJre(JRE.JAVA_15)
+void soloJava15() {
+    // Solo se ejecuta con Java 15.
+}
+```
+
+`@EnabledOnJre` habilita la prueba solo en las versiones especificadas. Comprueba qué versiones reconoce la versión de JUnit que utiliza tu proyecto.
+
+Nota: JDK incluye herramientas para desarrollar; JRE es el nombre que JUnit usa en esta anotación para representar versiones del entorno Java.
+
+## 4. Imprimir las propiedades del sistema
+
+```java
+@Test
+void imprimirSystemProperties() {
+    Properties properties = System.getProperties();
+    properties.forEach((k, v) -> System.out.println(k + " : " + v));
+}
+```
+
+- `Properties`: clase que almacena pares de clave y valor.
+- `System.getProperties()`: obtiene propiedades de la JVM, como `java.version`, `os.name` y `user.dir`.
+- `forEach(...)`: recorre las entradas.
+- `(k, v) -> ...`: lambda; `k` es la clave y `v` el valor.
+- `System.out.println(...)`: imprime cada par.
+
+Importación necesaria:
+
+```java
+import java.util.Properties;
+```
+
+## 5. Condición según `java.version`
+
+```java
+@Test
+@EnabledIfSystemProperty(named = "java.version", matches = "21\\..*")
+void testJavaVersion() {
+    // Se ejecuta si la propiedad coincide con la expresión regular.
+}
+```
+
+- `named = "java.version"` indica la propiedad que se consulta.
+- `matches` recibe una expresión regular.
+- `"21\\..*"` en el archivo Java representa una expresión regular que busca un texto que empiece con `21.`; `\\.` en esta documentación corresponde al escape de la barra invertida dentro de la cadena Java.
+
+El punto `.` tiene significado especial en expresiones regulares; para buscar un punto literal se escapa. Ajusta la expresión al formato real que devuelva `java.version`.
+
+## 6. Condición según la propiedad `ENV`
+
+```java
+@Test
+@EnabledIfSystemProperty(named = "ENV", matches = "dev")
+void testDev() {
+    // Se ejecuta si la propiedad de la JVM ENV vale dev.
+}
+```
+
+`@EnabledIfSystemProperty` evalúa una propiedad de Java, no una variable de entorno. Puedes definirla al iniciar la JVM con `-DENV=dev`; por ejemplo, con Maven:
+
+```bash
+mvn test -DENV=dev
+```
+
+La propiedad debe llegar al proceso de Java que ejecuta las pruebas, según la configuración del proyecto.
+
+### Si `ENV` es una variable de entorno
+
+Usa esta anotación:
+
+```java
+@Test
+@EnabledIfEnvironmentVariable(named = "ENV", matches = "dev")
+void testDevPorVariableDeEntorno() {
+    // Se ejecuta si la variable de entorno ENV coincide con dev.
+}
+```
+
+Diferencia:
+- `System.getProperty("ENV")`: propiedad de la JVM, comúnmente configurada con `-DENV=dev`.
+- `System.getenv("ENV")`: variable de entorno del sistema operativo.
+
+## 7. Importaciones
+
+```java
+import java.util.Properties;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.EnabledOnJre;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.OS;
+import org.junit.jupiter.api.condition.JRE;
+```
+
+Importa solo las anotaciones que realmente uses.
+
+## Resumen
+
+- `@EnabledOnOs`: habilita pruebas para ciertos sistemas operativos.
+- `@DisabledOnOs`: deshabilita pruebas para ciertos sistemas operativos.
+- `@EnabledOnJre`: habilita pruebas para versiones concretas de Java.
+- `@EnabledIfSystemProperty`: evalúa propiedades de la JVM.
+- `@EnabledIfEnvironmentVariable`: evalúa variables de entorno.
+- Una condición falsa hace que la prueba se omita, no que falle.
+

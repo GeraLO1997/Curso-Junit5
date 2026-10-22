@@ -3,8 +3,10 @@ package org.gerardo.junitapp.ejemplo.models;
 import org.gerardo.junitapp.ejemplo.exceptions.DineroInsuficienteException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.*;
 
 import java.math.BigDecimal;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*; // importamos estaticamente para no usar el Assert.
 
@@ -153,6 +155,55 @@ class CuentaTest {
                     .anyMatch(c -> c.getPersona().equals("Jhon Doe")));
         });
     }
+
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void testSoloWindows(){
+
+    }
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void testSoloLinuxMac(){
+
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void testNoWindows(){
+
+    }
+
+    @Test
+    @EnabledOnJre(JRE.JAVA_8)
+    void solojdk8(){
+
+    }
+
+    @Test
+    @EnabledOnJre(JRE.JAVA_15)
+    void name(){
+
+    }
+
+    @Test
+    void imprimirSystemProperties(){
+        Properties properties = System.getProperties();
+        properties.forEach((k,v) -> System.out.println(k + " : " + v));
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "java.version", matches = "21.*")
+    void testJavaVersion(){
+
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "ENV", matches = "dev")
+    void testDev(){
+
+    }
+
 
 
 }
