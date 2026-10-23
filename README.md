@@ -2484,3 +2484,121 @@ Además, importa la clase `Cuenta` y la excepción personalizada si tu prueba la
 - Distingue entre débitos válidos, saldo cero y fondos insuficientes.
 - Usa `assertThrows` cuando el resultado correcto sea una excepción.
 
+# Agrupando pruebas con `@Tag` en JUnit 5
+
+`@Tag` permite **clasificar pruebas mediante etiquetas** y seleccionar grupos al ejecutarlas. Es como poner etiquetas a carpetas: `cuentas`, `debito`, `integracion` o `rapidas`.
+
+## 1. Ejemplo básico
+
+```java
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import java.math.BigDecimal;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class CuentaTest {
+    @Test
+    @Tag("cuentas")
+    void testSaldoCuenta() {
+        Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000"));
+        assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1000")));
+    }
+}
+```
+
+- `@Test`: identifica el método como prueba.
+- `@Tag("cuentas")`: le asigna la etiqueta `cuentas`.
+- `Cuenta`: clase del proyecto que representa una cuenta bancaria.
+- `BigDecimal`: clase de Java para trabajar con números decimales precisos.
+- `assertEquals`: comprueba que el resultado de `compareTo()` sea cero (valores numéricamente iguales).
+
+**Importante:** agregar `@Tag` no evita que la prueba se ejecute; debes configurar un filtro para seleccionar etiquetas.
+
+## 2. Diferentes etiquetas
+
+```java
+class CuentaTest {
+    @Test
+    @Tag("debito")
+    void testDebito() {
+        Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000"));
+        cuenta.debito(new BigDecimal("200"));
+        assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("800")));
+    }
+
+    @Test
+    @Tag("credito")
+    void testCredito() {
+        Cuenta cuenta = new Cuenta("Andres", new BigDecimal("1000"));
+        cuenta.credito(new BigDecimal("500"));
+        assertEquals(0, cuenta.getSaldo().compareTo(new BigDecimal("1500")));
+    }
+}
+```
+
+Las etiquetas describen el contexto de cada prueba. Puedes repetir `@Tag` para asignar varias etiquetas:
+
+```java
+@Test
+@Tag("cuentas")
+@Tag("debito")
+void testDebitoCuenta() {
+    // ...
+}
+```
+
+## 3. Etiquetas en clases completas
+
+```java
+@Tag("cuentas")
+class CuentaTest {
+    @Test
+    void testSaldo() {
+        // Etiqueta: cuentas
+    }
+
+    @Test
+    @Tag("debito")
+    void testDebito() {
+        // Etiquetas: cuentas y debito
+    }
+}
+```
+
+Las etiquetas declaradas a nivel de clase se aplican también a sus métodos de prueba.
+
+## 4. Ejecutar pruebas por etiqueta con Maven
+
+Si el proyecto utiliza Maven Surefire y JUnit 5, puedes filtrar las pruebas mediante:
+
+```bash
+mvn test -Dgroups=debito
+```
+
+Para excluir una etiqueta:
+
+```bash
+mvn test -DexcludedGroups=integracion
+```
+
+Para seleccionar varias etiquetas con una expresión:
+
+```bash
+mvn test -Dgroups="debito | credito"
+```
+
+Las opciones dependen de que la configuración de Maven Surefire y el motor de JUnit Jupiter del proyecto sean compatibles. En el IDE también puedes crear configuraciones de ejecución filtradas por etiquetas.
+
+## 5. Reglas y buenas prácticas
+
+- Usa nombres claros y consistentes, como `unitarias`, `integracion`, `cuentas` y `debito`.
+- Los nombres de etiquetas no pueden estar vacíos ni contener espacios en blanco o caracteres reservados como `,`, `(`, `)`, `&`, `|` y `!`.
+- Una etiqueta clasifica pruebas, pero no cambia su comportamiento.
+- `@Tag` y `@Disabled` no son equivalentes: `@Disabled` omite una prueba; `@Tag` permite filtrarla desde la configuración de ejecución.
+- Puedes combinar `@Tag` con `@ParameterizedTest`, `@RepeatedTest` y `@Nested`.
+
+## Resumen
+
+`@Tag` sirve para organizar pruebas por categorías. Puedes aplicarla a métodos o clases, asignar varias etiquetas y ejecutar grupos específicos desde Maven o tu IDE. Es especialmente útil cuando un proyecto crece y no quieres ejecutar todas las pruebas en cada ocasión.
+
+

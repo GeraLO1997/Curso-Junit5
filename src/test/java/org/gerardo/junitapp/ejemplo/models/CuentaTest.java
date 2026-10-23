@@ -45,6 +45,7 @@ class CuentaTest {
         System.out.println("Finalizando el test");
     }
 
+    @Tag("cuenta")
     @Nested
     @DisplayName("Probando atributos de la cuenta")
     class CuentaTestNombreSaldo{
@@ -82,12 +83,14 @@ class CuentaTest {
         }
     }
 
+
     @Nested
     @DisplayName("Probando operaciones")
     class CuentaOperacionesTest{
         // Este test resta de la cuenta
         @Test
         @DisplayName("Test del metodo debito")
+        @Tag("cuenta")
         void testDebitoCuenta() {
             cuenta.debito(new BigDecimal(100)); // esperado 900.12345
 
@@ -100,6 +103,7 @@ class CuentaTest {
         // Este test le suma a la cuenta
         @Test
         @DisplayName("Test del metodo credito")
+        @Tag("cuenta")
         void testCreditoCuenta() {
             cuenta.credito(new BigDecimal(100)); // esperado 900.12345
 
@@ -111,6 +115,8 @@ class CuentaTest {
 
         @Test
         @DisplayName("Test relacion bidireccional")
+        @Tag("cuenta")
+        @Tag("banco")
         void testTransferirDineroCuentas() {
             Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
             Cuenta cuenta2 = new Cuenta("Andres", new BigDecimal("1500.8989"));
@@ -127,6 +133,8 @@ class CuentaTest {
 
 
     @Test
+    @Tag("cuenta")
+    @Tag("error")
     void dineroInsuficienteException() {
         cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
         Exception exception = assertThrows(DineroInsuficienteException.class, () -> {
@@ -142,7 +150,7 @@ class CuentaTest {
 
     @Test
     @DisplayName("Probando relaciones entre las cuentas y el banco con assertAll")
-    @Disabled
+    @Tag("banco")
     void testRelacionBancoCuentas() {
         fail();
         Cuenta cuenta1 = new Cuenta("Jhon Doe", new BigDecimal("2500"));
@@ -288,6 +296,7 @@ class CuentaTest {
 
     }
 
+    @Tag("param")
     @Nested
     class PruebasParametrizadas{
         @ParameterizedTest(name = "numero {index} ejecutando con valor {0} - {argumentsWithNames}")
