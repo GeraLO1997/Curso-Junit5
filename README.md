@@ -2747,3 +2747,115 @@ import static org.junit.jupiter.api.Assertions.*;
 - Se pueden recibir tanto en métodos `@Test` como en métodos de ciclo de vida compatibles, como `@BeforeEach`.
 - `publishEntry()` es preferible a `println()` cuando quieres registrar información destinada a los reportes de prueba.
 
+# Timeout en JUnit 5: `@Timeout` y `assertTimeout()`
+
+## ¿Qué es un timeout?
+
+Un **timeout** es un límite de tiempo permitido para completar una prueba u operación. Sirve para detectar pruebas que tardan demasiado o que podrían quedarse bloqueadas. Ejemplo: comprobar que una consulta bancaria termine antes de cinco segundos.
+
+## Ejemplo original
+
+```java
+@Nested
+@Tag("timeout")
+class EjemploTimeOutTest {
+
+    @Test
+    @Timeout(5)
+    void pruebaTimeOut() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(3);
+    }
+
+    @Test
+    @Timeout(value = 5000, unit = TimeUnit.MILLISECONDS)
+    void pruebaTimeOut2() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(3);
+    }
+
+    @Test
+    void testTimeOutAssertions() {
+        assertTimeout(Duration.ofSeconds(5), () -> {
+            TimeUnit.MILLISECONDS.sleep(4500);
+        });
+    }
+}
+```
+
+## Explicación de las clases, anotaciones y métodos
+
+- **`@Nested`**: organiza las pruebas en una clase interna, agrupándolas por tema.
+- **`@Tag("timeout")`**: etiqueta el grupo para poder filtrarlo en la ejecución.
+- **`@Test`**: identifica un método como prueba de JUnit.
+- **`@Timeout(5)`**: establece un límite de **cinco segundos** para la prueba. La unidad predeterminada es segundos.
+- **`@Timeout(value = 5000, unit = TimeUnit.MILLISECONDS)`**: establece el mismo límite en milisegundos: `5000 ms = 5 s`.
+- **`TimeUnit`**: enum de `java.util.concurrent` que representa unidades de tiempo.
+- **`TimeUnit.SECONDS.sleep(3)`**: pausa el hilo actual aproximadamente tres segundos para simular trabajo lento.
+- **`TimeUnit.MILLISECONDS.sleep(4500)`**: pausa el hilo unos 4500 milisegundos (4.5 segundos).
+- **`InterruptedException`**: excepción comprobada que puede producirse cuando un hilo dormido es interrumpido; `throws` la declara en la firma del método.
+- **`Duration`**: clase de `java.time` que representa una duración de tiempo.
+- **`Duration.ofSeconds(5)`**: crea una duración de cinco segundos.
+- **`assertTimeout(duracion, ejecutable)`**: verifica que el código de la lambda finalice dentro de la duración indicada.
+- **`()-> { ... }`**: expresión lambda que representa el bloque de instrucciones a ejecutar; JUnit la trata como un `Executable`.
+
+## Diferencia entre `@Timeout` y `assertTimeout()`
+
+| Característica | `@Timeout` | `assertTimeout()` |
+|---|---|---|
+| Aplicación | Método de prueba o método de ciclo de vida | Bloque específico dentro de una prueba |
+| Configuración | Anotación | Aserción con `Duration` y `Executable` |
+| Si excede el límite | JUnit marca fallo e intenta interrumpir la ejecución, según configuración | JUnit espera a que termine el bloque y luego marca fallo |
+| Interrupción | Puede interrumpir el hilo de la prueba | **No** interrumpe preventivamente el bloque |
+
+**Importante:** `assertTimeout()` no detiene el código al cumplirse el límite. Si necesitas una variante preventiva, JUnit dispone de `assertTimeoutPreemptively()`, pero ejecuta el bloque en otro hilo y esto puede afectar al contexto de ejecución (por ejemplo, transacciones asociadas al hilo).
+
+## Ejemplo de fallo
+
+```java
+@Test
+@Timeout(2)
+void pruebaLenta() throws InterruptedException {
+    TimeUnit.SECONDS.sleep(4); // Excede el límite de 2 segundos
+}
+```
+
+```java
+@Test
+void pruebaLentaConAssertion() {
+    assertTimeout(Duration.ofSeconds(2), () -> {
+        TimeUnit.SECONDS.sleep(4); // Al terminar, JUnit informa del fallo
+    });
+}
+```
+
+## ¿Por qué pasan las tres pruebas originales?
+
+- Primera: 3 segundos de espera, límite de 5 segundos.
+- Segunda: 3 segundos de espera, límite de 5000 milisegundos.
+- Tercera: 4.5 segundos de espera, límite de 5 segundos.
+
+**Advertencia:** los tiempos reales incluyen sobrecarga del sistema; una prueba muy cercana al límite puede fallar de forma intermitente en equipos lentos o bajo carga.
+
+## Importaciones
+
+```java
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
+```
+
+## Buenas prácticas
+
+1. Prefiere probar operaciones reales en lugar de depender de `sleep()`; aquí `sleep()` solo simula demora.
+2. Deja un margen razonable para evitar pruebas inestables.
+3. Utiliza `@Timeout` para limitar una prueba completa y `assertTimeout()` para medir un bloque específico.
+4. No confundas un timeout de prueba con los timeouts de red, base de datos o cliente HTTP: estos últimos deben configurarse en el componente correspondiente.
+
+## Resumen
+
+`@Timeout` limita el tiempo de una prueba; `assertTimeout()` verifica el tiempo de ejecución de un bloque y **espera a que ese bloque termine** antes de informar si excedió el límite. `TimeUnit` permite expresar pausas y unidades; `Duration` representa el tiempo permitido para una aserción.
+
+
