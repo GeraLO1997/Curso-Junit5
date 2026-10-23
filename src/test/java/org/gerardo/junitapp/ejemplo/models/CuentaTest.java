@@ -23,11 +23,22 @@ class CuentaTest {
 
     Cuenta cuenta; // atributo independiente de cada metodo (lo declaramos en initMetodoTest())
 
+    private TestInfo testInfo;
+    private TestReporter testReporter;
+
     @BeforeEach
-    void initMetodoTest(){
+    void initMetodoTest(TestInfo testInfo, TestReporter testReporter){
         System.out.println("Iniciando el metodo. ");
 
+        this.testInfo = testInfo;
+        this.testReporter = testReporter;
+
         cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+
+        testReporter.publishEntry(" ejecutando: " + testInfo + testInfo.getDisplayName() + " " + testInfo.getTestMethod().orElseThrow().getName()
+                + " con las estiquetas " + testInfo.getTags());
+
+
     }
 
     @AfterEach
@@ -51,10 +62,15 @@ class CuentaTest {
     class CuentaTestNombreSaldo{
         @Test
         @DisplayName("Probando el nombre de la cuenta corriente")
-        void test() {
+        void cuentaTest() {
 
             String esperado = "Andres";
             String real = cuenta.getPersona();
+
+            testReporter.publishEntry(testInfo.getTags().toString());
+            if (testInfo.getTags().contains("cuenta")){
+                testReporter.publishEntry("hacer algo con la etiqueta cuenta");
+            }
 
             assertNotNull(real, () -> "La cuenta no puede ser nula");
             assertEquals(esperado, real,

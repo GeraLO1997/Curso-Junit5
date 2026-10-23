@@ -2602,3 +2602,148 @@ Las opciones dependen de que la configuración de Maven Surefire y el motor de J
 `@Tag` sirve para organizar pruebas por categorías. Puedes aplicarla a métodos o clases, asignar varias etiquetas y ejecutar grupos específicos desde Maven o tu IDE. Es especialmente útil cuando un proyecto crece y no quieres ejecutar todas las pruebas en cada ocasión.
 
 
+# Inyección de parámetros en JUnit 5: `TestInfo` y `TestReporter`
+
+JUnit 5 puede proporcionar automáticamente objetos especiales a los métodos de prueba y de ciclo de vida. Esto se llama **resolución o inyección de parámetros**. No es necesario crearlos con `new`.
+
+**Analogía:** `TestInfo` es la ficha de identificación de la prueba; `TestReporter` es el registro donde la prueba puede publicar mensajes.
+
+## 1. ¿Qué hace cada interfaz?
+
+| Interfaz | Función |
+|---|---|
+| `TestInfo` | Ofrece información de la prueba actual: nombre visible, método, clase y etiquetas. |
+| `TestReporter` | Publica entradas de reporte que pueden recoger JUnit, el IDE o herramientas de construcción. |
+
+Estas interfaces pertenecen a JUnit Jupiter. No equivalen a `@Autowired` de Spring: JUnit resuelve sus parámetros mediante su propio mecanismo.
+
+## 2. Ejemplo completo
+
+```java
+import java.math.BigDecimal;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.TestReporter;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+class CuentaTest {
+    private Cuenta cuenta;
+
+    @BeforeEach
+    void initMetodoTest(TestInfo testInfo, TestReporter testReporter) {
+        cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+
+        testReporter.publishEntry(
+            "Iniciando: " + testInfo.getDisplayName()
+            + " | Etiquetas: " + testInfo.getTags()
+        );
+    }
+
+    @Test
+    @Tag("cuentas")
+    @DisplayName("Probando el nombre de la cuenta corriente")
+    void cuentaTest(TestInfo testInfo, TestReporter testReporter) {
+        String esperado = "Andres";
+        String real = cuenta.getPersona();
+
+        assertNotNull(real, "El nombre de la cuenta no puede ser nulo");
+        assertEquals(esperado, real, "El nombre de la cuenta no coincide");
+
+        testReporter.publishEntry("Prueba ejecutada: " + testInfo.getDisplayName());
+    }
+}
+```
+
+La clase `Cuenta` es la que se ha trabajado en las lecciones anteriores; impórtala según el paquete de tu proyecto.
+
+## 3. Métodos de `TestInfo`
+
+```java
+System.out.println(testInfo.getDisplayName());
+System.out.println(testInfo.getTestMethod().orElseThrow().getName());
+System.out.println(testInfo.getTags());
+```
+
+- `getDisplayName()`: devuelve el nombre que aparece en el reporte. Si usas `@DisplayName`, devuelve ese texto.
+- `getTestMethod()`: devuelve `Optional<Method>`, porque puede no haber un método de prueba disponible en ciertos contextos.
+- `orElseThrow()`: extrae el método cuando está presente y lanza una excepción si no lo está.
+- `getName()`: método de reflexión de Java (`Method`) que devuelve el nombre real, por ejemplo `cuentaTest`.
+- `getTags()`: devuelve `Set<String>` con las etiquetas asociadas a la prueba.
+- `getTestClass()`: devuelve `Optional<Class<?>>` con la clase, cuando está disponible.
+
+Por ejemplo, con `@DisplayName("Probando el nombre de la cuenta corriente")` y `@Tag("cuentas")`, la información podría ser:
+
+```text
+Probando el nombre de la cuenta corriente
+cuentaTest
+[cuentas]
+```
+
+## 4. ¿Qué hace `TestReporter`?
+
+```java
+testReporter.publishEntry("Iniciando prueba de cuenta");
+```
+
+`publishEntry()` publica información para los reportes de JUnit. No es exactamente igual a `System.out.println()`: el texto se envía al mecanismo de reportes y su visualización depende del IDE o de la herramienta que ejecute las pruebas.
+
+También admite pares de clave y valor:
+
+```java
+testReporter.publishEntry("estado", "iniciando");
+```
+
+Esta forma facilita registrar información estructurada.
+
+## 5. Inyección en `@BeforeEach`
+
+```java
+@BeforeEach
+void initMetodoTest(TestInfo testInfo, TestReporter testReporter) {
+    cuenta = new Cuenta("Andres", new BigDecimal("1000.12345"));
+    testReporter.publishEntry("Preparando " + testInfo.getDisplayName());
+}
+```
+
+JUnit también puede proporcionar estos parámetros en métodos de ciclo de vida compatibles, como `@BeforeEach`. Aquí se prepara una cuenta nueva antes de cada prueba y se publica un mensaje con el nombre de la prueba que va a ejecutarse.
+
+En tu código original aparecen estas asignaciones:
+
+```java
+this.testInfo = testInfo;
+this.testReporter = testReporter;
+```
+
+Solo son necesarias si has declarado campos de instancia y quieres utilizar esos objetos en otros métodos. Si solo los usas dentro de `@BeforeEach`, puedes evitar guardarlos.
+
+## 6. Detalles a mejorar en el ejemplo original
+
+- `System.out.println(" ejecutando: " + testInfo + testInfo.getDisplayName())` imprime también la representación del objeto `TestInfo`, que normalmente no necesitas. Basta con `testInfo.getDisplayName()`.
+- `assertNotNull(real, "La cuenta no puede ser nula")` realmente comprueba el **nombre**, no el objeto `Cuenta`. Es más preciso decir "El nombre de la cuenta no puede ser nulo".
+- `assertEquals(esperado, real)` y `assertTrue(real.equals("Andres"))` comprueban esencialmente lo mismo. Puedes dejar solamente `assertEquals`.
+- Si llamas a `getTestMethod().orElseThrow()` en un contexto sin método disponible, se lanzará una excepción. En el método `@Test` mostrado, normalmente sí estará disponible.
+
+## 7. Importaciones
+
+```java
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.TestReporter;
+import static org.junit.jupiter.api.Assertions.*;
+```
+
+## Resumen
+
+- `TestInfo` proporciona información sobre el contexto de la prueba.
+- `TestReporter` permite publicar mensajes y datos en el sistema de reportes de JUnit.
+- JUnit inyecta ambos objetos como parámetros sin utilizar `new`.
+- Se pueden recibir tanto en métodos `@Test` como en métodos de ciclo de vida compatibles, como `@BeforeEach`.
+- `publishEntry()` es preferible a `println()` cuando quieres registrar información destinada a los reportes de prueba.
+
