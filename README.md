@@ -2858,4 +2858,132 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 `@Timeout` limita el tiempo de una prueba; `assertTimeout()` verifica el tiempo de ejecución de un bloque y **espera a que ese bloque termine** antes de informar si excedió el límite. `TimeUnit` permite expresar pausas y unidades; `Duration` representa el tiempo permitido para una aserción.
 
+# Maven Surefire Plugin
+
+## ¿Qué es?
+
+**Maven Surefire Plugin** ejecuta pruebas automatizadas durante la fase `test` del ciclo de vida de Maven. Permite ejecutar pruebas desde la terminal, sin abrir un IDE, y genera reportes de resultados.
+
+**Analogía:** Maven organiza la construcción de una casa; Surefire actúa como inspector y comprueba que los componentes funcionen antes de continuar.
+
+## Comando básico
+
+```bash
+mvn test
+```
+
+Maven procesa las fases necesarias hasta `test` y Surefire ejecuta las pruebas descubiertas. Una salida posible es:
+
+```text
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+## Configuración en `pom.xml`
+
+El siguiente bloque va dentro del elemento raíz `<project>` del `pom.xml`:
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>3.5.6</version>
+            <configuration>
+                <groups>cuenta</groups>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
+
+- `<build>`: configuración de construcción de Maven.
+- `<plugins>`: conjunto de complementos de construcción.
+- `<plugin>`: un complemento particular.
+- `<groupId>`: organización que identifica el complemento.
+- `<artifactId>`: nombre del complemento (`maven-surefire-plugin`).
+- `<version>`: versión configurada; debe existir en los repositorios disponibles.
+- `<configuration>`: opciones específicas del complemento.
+- `<groups>`: expresión de etiquetas (tags) que Surefire incluirá al ejecutar pruebas con JUnit Platform.
+
+**Importante:** los fragmentos anteriores son XML, no comandos Bash. Se escriben en el archivo `pom.xml`.
+
+## Relación con `@Tag`
+
+```java
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+class CuentaTest {
+    @Test
+    @Tag("cuenta")
+    void testSaldoCuenta() {
+        // Comprobar saldo
+    }
+
+    @Test
+    @Tag("debito")
+    void testDebitoCuenta() {
+        // Comprobar débito
+    }
+}
+```
+
+Con `<groups>cuenta</groups>`, se ejecuta la prueba etiquetada como `cuenta`; la prueba etiquetada solo como `debito` queda fuera de ese filtro. Las etiquetas son sensibles al texto: `cuenta` y `cuentas` no son iguales.
+
+Si quitas `<groups>`, Surefire deja de aplicar ese filtro y ejecuta las pruebas que descubra normalmente, siempre que no existan otros filtros.
+
+## Comandos útiles
+
+```bash
+# Ejecutar pruebas
+mvn test
+
+# Ejecutar solo la etiqueta cuenta
+mvn test -Dgroups=cuenta
+
+# Ejecutar pruebas con cualquiera de dos etiquetas
+mvn test -Dgroups="cuenta | debito"
+
+# Excluir pruebas con etiqueta integracion
+mvn test -DexcludedGroups=integracion
+
+# Ejecutar una clase de pruebas
+mvn test -Dtest=CuentaTest
+
+# Ejecutar un método de una clase
+mvn test -Dtest=CuentaTest#testSaldoCuenta
+
+# Limpiar resultados anteriores y ejecutar de nuevo
+mvn clean test
+```
+
+Si `groups` ya está configurado en el `pom.xml`, los comandos que seleccionan una clase o un método pueden seguir sujetos al filtro de etiquetas. Para ejecutar pruebas sin el filtro fijo, elimínalo temporalmente o configura su valor mediante una propiedad Maven.
+
+## Reportes generados
+
+La carpeta habitual es:
+
+```text
+target/
+└── surefire-reports/
+    ├── TEST-org.gerardo.junitapp.ejemplo.CuentaTest.xml
+    └── org.gerardo.junitapp.ejemplo.CuentaTest.txt
+```
+
+El nombre real de los archivos depende del paquete y de la clase. El archivo `.txt` resume los resultados y puede incluir detalles de fallos; el `.xml` ofrece información estructurada útil para herramientas CI/CD. **No es necesariamente un archivo único con todos los logs**; Surefire genera reportes por clase o conjunto de pruebas y la salida capturada puede variar según la configuración.
+
+## Surefire y Failsafe
+
+- **Surefire**: suele ejecutar pruebas unitarias en la fase `test`.
+- **Failsafe**: se usa normalmente para pruebas de integración en las fases `integration-test` y `verify`.
+
+## Relación con CI/CD
+
+Un servidor de integración continua puede ejecutar `mvn clean test` para comprobar automáticamente que los cambios no rompen el proyecto. Los reportes de Surefire permiten consultar fallos y estadísticas de las pruebas.
+
+## Resumen
+
+Surefire es el complemento que ejecuta pruebas Maven en la fase `test`. Se configura en `pom.xml`, permite filtrar por etiquetas JUnit 5 mediante `<groups>` y escribe reportes en `target/surefire-reports/`.
 
